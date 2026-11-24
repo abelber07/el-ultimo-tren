@@ -257,6 +257,23 @@ def fotogrames_viatgera():
     fs["llança"] = viatgera(c_d=0.5, f_d=0.4, c_e=-0.4, f_e=0.3, incl=0.3, b_d=1.9, a_d=1.9, b_e=1.6, a_e=1.7,
                             paraigua="cap", bufanda=3, vol=1)
     fs["estirada"] = viatgera(estirat=True)
+    # frenada: empesa cap on mira (s'inclina endavant i fa voltar els braços) o d'esquena (es tira enrere)
+    for i in range(2):
+        k = 0.35 * i
+        fs[f"trontolla_d{i}"] = viatgera(c_d=0.55, f_d=0.25, c_e=-0.65, f_e=0.4, incl=0.5, b_d=-2.1 - k,
+                                         a_d=-2.6 - k, b_e=-2.7 + k, a_e=-3.0 + k, ap=3.5, bufanda=-4, vol=-2)
+        fs[f"trontolla_e{i}"] = viatgera(c_d=0.7, f_d=0.5, c_e=-0.25, f_e=0.25, incl=-0.42, b_d=1.9 + k,
+                                         a_d=2.3 + k, b_e=1.5 - k, a_e=2.0 - k, ap=2.9, bufanda=5, vol=2)
+    # agafada: ajupida amb el paraigua clavat a terra per no sortir disparada
+    fs["agafada"] = viatgera(ajup=8, c_d=1.35, f_d=2.5, c_e=1.0, f_e=2.4, incl=0.3, b_d=0.75, a_d=0.25,
+                             ap=1.1, b_e=0.6, a_e=0.4)
+    # asseguda al banc de l'andén (animació inicial): adormida, i desperta
+    for i in range(2):
+        fs[f"seu_dorm{i}"] = viatgera(c_d=1.35, f_d=1.25, c_e=1.25, f_e=1.2, incl=0.3 + 0.04 * i, b_d=1.0,
+                                      a_d=1.7, b_e=0.9, a_e=1.6, ap=0.3, ajup=0.4 * i)
+    fs["seu"] = viatgera(c_d=1.35, f_d=1.25, c_e=1.25, f_e=1.2, incl=0.0, b_d=0.8, a_d=1.5, b_e=0.7, a_e=1.4,
+                         ap=0.3)
+    fs["estira"] = viatgera(mans_amunt=True, paraigua="cap", incl=-0.1, bufanda=1)
     return fs
 
 

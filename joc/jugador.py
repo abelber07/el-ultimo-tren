@@ -50,6 +50,7 @@ class Jugador(Cos):
         self.anim = 0.0
         self.escala_x = None
         self.empenta = 0.0            # empenta de fora (corbes, frenades) que s'afegeix a vx
+        self.frenada = False          # el tren està frenant (canvia la postura)
         self.cops_rebuts = 0
         self.morts = 0
 
@@ -321,6 +322,10 @@ class Jugador(Cos):
             return "portac%d" % (int(self.anim) % 4) if abs(self.vx - self.empenta) > 0.3 else "porta0"
         if not self.a_terra:
             return "salt" if self.vy < 0 else "caiguda"
+        if self.frenada and e == "normal":
+            if self.ajupit:
+                return "agafada"
+            return ("trontolla_d%d" if self.dir > 0 else "trontolla_e%d") % ((self.t // 6) % 2)
         if self.ajupit:
             return "sigil%d" % (int(self.anim * 2) % 4) if abs(self.vx - self.empenta) > 0.3 else "ajup"
         if abs(self.vx - self.empenta) > 0.4:

@@ -11,7 +11,9 @@ llegar a la locomotora antes del amanecer, vagón a vagón.
 - Cada vagón se genera al azar. La puerta del fondo no se abre mientras quede algún pasajero despierto dentro.
 - A los que duermen puedes dejarlos atrás si pasas agachado, sin hacer ruido.
 - Algunos vagones tienen una escotilla: por el techo vas más rápido, pero cuidado con los túneles.
-- El tren está vivo: en las curvas todo resbala, los frenazos lo lanzan todo hacia delante y en los túneles se apagan las luces.
+- El tren está vivo: en las curvas todo resbala, los frenazos lo lanzan todo hacia delante (agáchate para agarrarte) y en
+  los túneles se apagan las luces.
+- Tres dificultades en el menú: Tranquila, Normal y Pesadilla (vida, número de pasajeros, su rapidez y lo que dura la noche).
 
 ## Controles
 
@@ -19,7 +21,7 @@ llegar a la locomotora antes del amanecer, vagón a vagón.
 |---|---|
 | A / D (o flechas) | moverte |
 | ESPACIO | saltar |
-| S | agacharte (sin hacer ruido) |
+| S | agacharte (sin hacer ruido; en un frenazo, agarrarte) |
 | S + ESPACIO | bajar de una plataforma |
 | W | subir escaleras |
 | J o clic | golpe de paraguas (tres seguidos: estocada) |
@@ -33,7 +35,10 @@ También funciona con mando (A saltar, B voltereta, X usar, Y o RB golpe, LB par
 
 ## Estado
 
-**Versión 0.1: primer tramo jugable (la llanura).**
+**Versión 0.2: primer tramo jugable (la llanura).**
+
+- Novedades de la 0.2: animación inicial en la estación, menú nuevo, dificultad y un frenazo que se entiende (aviso con
+  cuenta atrás, la viajera se tambalea, chispas en las ruedas y flechas que marcan hacia dónde empuja).
 
 - La viajera: correr, saltar, agacharse, voltereta, escaleras, paraguas (combo de tres golpes, parada y parada perfecta), coger y lanzar maletas y botellas.
 - Vagones: furgón de cola, segunda clase, coche cama, restaurante, equipajes, correo y la máquina expendedora.

@@ -26,6 +26,7 @@ class Enemic(Cos):
         self.flash = 0
         self.atordit = 0
         self.anim = random.random() * 4
+        self.agressio = 1.0
 
     def canviar(self, e):
         self.estat = e
@@ -170,7 +171,7 @@ class SenseCara(Enemic):
                 self.canviar("prepara")
                 self.vx = 0
             else:
-                self.vx = self.dir * self.VEL + p.empenta
+                self.vx = self.dir * self.VEL * self.agressio + p.empenta
                 if self.espera > 0:
                     self.espera -= 1
                     self.vx *= 0.3
@@ -182,7 +183,7 @@ class SenseCara(Enemic):
         if e == "prepara":
             self.vx = p.empenta * 0.3
             self.moure(p.tren)
-            if self.t >= 30:
+            if self.t >= 30 / self.agressio:
                 self.canviar("cop")
                 self.vx = self.dir * 2.0
             return
@@ -191,7 +192,7 @@ class SenseCara(Enemic):
             self.moure(p.tren)
             if self.t >= 26:
                 self.canviar("persegueix")
-                self.espera = random.randint(30, 60)
+                self.espera = int(random.randint(30, 60) / self.agressio)
             return
         self.canviar("persegueix")
 
@@ -274,7 +275,7 @@ class MaletaViva(Enemic):
             self.vx = self.salt_vx                   # el salt manté la direcció encara que fregui una caixa
         if self.a_terra:
             self.vx = self.vx * 0.7 + p.empenta * 0.3
-            if self.t > 26 and self.veu(j, 300, p):
+            if self.t > 26 / self.agressio and self.veu(j, 300, p):
                 self.dir = 1 if j.x > self.x else -1
                 self.vx = self.salt_vx = self.dir * random.uniform(2.0, 2.8)
                 self.vy = -7.8 if self.encallada else random.uniform(-5.4, -4.2)
@@ -331,7 +332,7 @@ class Polisso(Enemic):
                 self.moure(p.tren)
                 return
             self.dir = 1 if j.x > self.x else -1
-            self.vx = self.dir * 2.9 + p.empenta
+            self.vx = self.dir * 2.9 * min(1.15, self.agressio) + p.empenta
             if self.a_terra and (self.xoc_paret or (j.y < self.y - 30 and abs(j.x - self.x) < 40)):
                 self.vy = -7.0
             self.anim += 0.25

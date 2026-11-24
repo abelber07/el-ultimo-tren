@@ -2,12 +2,13 @@
 
     python tools/captures.py carpeta_sortida [escena ...]
 
-Escenes: titol, inici, segona, sostre, tunel, combat, final.
+Escenes: intro, titol, inici, segona, sostre, tunel, combat, frenada, final.
 """
 import os
 import sys
 
 os.environ["JOC_FINESTRA"] = "0"
+os.environ.setdefault("JOC_DADES", os.path.join(os.environ.get("TEMP", "/tmp"), "ultimo_tren_captures"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 import pygame  # noqa: E402
@@ -23,6 +24,9 @@ joc = main.Joc()
 
 
 def guardar(nom, escala=2):
+    j = joc.partida.jugador if joc.partida else None
+    if j and j.invul > 1000:
+        j.invul = 8000                      # que no surti en el fotograma que parpelleja
     joc.dibuixar()
     pygame.image.save(pygame.transform.scale_by(joc.llenc, escala), os.path.join(SORTIDA, nom + ".png"))
     print("captura", nom)
@@ -37,8 +41,8 @@ def pas(n=1, tecles=(), prem=()):
         joc.actualitzar()
 
 
-def nova(llavor=11):
-    joc.partida = Partida(joc.atles, joc.atr, llavor=llavor, paisatge=joc.paisatge)
+def nova(llavor=11, dificultat="normal"):
+    joc.partida = Partida(joc.atles, joc.atr, llavor=llavor, paisatge=joc.paisatge, dificultat=dificultat)
     joc.estat = "joc"
     return joc.partida
 
@@ -52,12 +56,28 @@ def teleport(p, vago, dx=80, y=TERRA_Y):
     return v
 
 
-escenes = sys.argv[2:] or ["titol", "inici", "segona", "sostre", "tunel", "combat", "final"]
+escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "final"]
+if "intro" in escenes:
+    joc.veure_intro()
+    fet = 0
+    for i, t in enumerate((120, 380, 520, 700, 900, 1100, 1350)):
+        pas(t - fet)
+        fet = t
+        guardar(f"00_intro{i}")
 if "titol" in escenes:
-    joc.estat = "titol"
-    for _ in range(30):
-        joc.actualitzar()
+    joc.anar_titol()
+    pas(60)
     guardar("01_titol")
+    pas(1, prem=["avall"])
+    pas(20)
+    guardar("01_titol_dificultat")
+    pas(1, prem=["dre"])
+    pas(1, prem=["avall"])
+    pas(1, prem=["avall"])
+    pas(1, prem=["acceptar"])
+    pas(10)
+    guardar("01_controls")
+    pas(1, prem=["acceptar"])
 if "inici" in escenes:
     p = nova()
     pas(20)
@@ -121,9 +141,24 @@ if "combat" in escenes:
     p.esdeveniments.llançar("corba")
     pas(160)
     guardar("13_corba")
+if "frenada" in escenes:
+    p = nova(5)
+    teleport(p, 1, dx=120)
+    p.jugador.invul = 9999
     p.esdeveniments.llançar("frenada")
-    pas(120)
-    guardar("14_frenada")
+    pas(60)
+    guardar("14_frenada_avis")
+    pas(54)
+    guardar("14_frenada_cop")
+    pas(12)
+    guardar("14_frenada_b")
+    p = nova(5)
+    teleport(p, 1, dx=120)
+    p.jugador.invul = 9999
+    p.esdeveniments.llançar("frenada")
+    pas(1, tecles=["avall"])
+    pas(125, tecles=["avall"])
+    guardar("14_frenada_agafada")
 if "final" in escenes:
     p = nova()
     p.jugador.vida = 0

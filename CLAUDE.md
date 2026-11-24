@@ -15,14 +15,16 @@ No tiene nada que ver con NEXUS (otro juego suyo): de allí solo viene el pintor
 
 | Carpeta | Qué hay |
 |---|---|
-| `main.py` | `Joc`: estados (título, juego, pausa, final) y el bucle |
-| `motor/` | `nucli` (ventana y escalado), `control` (teclado/ratón/mando → acciones), `dibuix` (letras, `Atles`, partículas) |
+| `main.py` | `Joc`: estados (intro, menú, controles, juego, pausa, final) y el bucle |
+| `motor/` | `nucli` (ventana y escalado), `control` (teclado/ratón/mando → acciones), `dibuix` (letras, `Atles`, partículas), `desat` (opciones y récord: JSON o localStorage; `JOC_DADES` para pruebas) |
 | `joc/mon.py` | medidas del tren (SOSTRE_Y, TERRA_Y...) y `Cos` (física con sólidos y plataformas de un sentido) |
 | `joc/tren.py` | `Tren` y `Vago`: generación de cada tipo de vagón (`GENERADORS`), colisiones y `pintar_vago` |
 | `joc/partida.py` | `Partida`: una noche (jugador, enemigos, objetos, puertas, cámara, túneles y HUD) |
 | `joc/jugador.py`, `joc/enemics.py`, `joc/objectes.py` | la viajera, los enemigos (`TIPUS`) y los objetos |
 | `joc/esdeveniments.py` | reloj de la noche, túneles, frenazos y curvas |
 | `joc/paisatge.py` | cielo, capas de parallax y túnel |
+| `joc/dificultat.py` | los tres niveles (`DIFICULTATS`) |
+| `joc/exterior.py`, `joc/presentacio.py` | el tren visto de fuera; logo, menú y la animación inicial (`Intro`) |
 | `tools/` | generadores de arte, `captures.py` (capturas sin ventana), `fer_web.py` (build de pygbag) |
 | `tests/` | pruebas con `JOC_FINESTRA=0`, incluido un bot que cruza el tramo entero |
 

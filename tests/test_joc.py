@@ -183,3 +183,76 @@ def test_bot_arriba_al_final(llavor):
     f = bot(p)
     assert p.acabada == "tram", (p.vago_actual, p.jugador.x)
     assert f is not None
+
+
+@pytest.mark.parametrize("dif", ["facil", "dificil"])
+def test_bot_arriba_amb_cada_dificultat(dif):
+    for llavor in (1, 2):
+        p = Partida(ATLES, ATR, llavor=llavor, dificultat=dif)
+        bot(p)
+        assert p.acabada == "tram", (dif, llavor, p.vago_actual, p.jugador.x)
+
+
+def test_dificultat_canvia_la_partida():
+    facil = Partida(ATLES, ATR, llavor=7, dificultat="facil")
+    dificil = Partida(ATLES, ATR, llavor=7, dificultat="dificil")
+    assert facil.jugador.vida_max > dificil.jugador.vida_max
+    assert len(facil.enemics) < len(dificil.enemics)
+    for _ in range(600):
+        facil.esdeveniments.temps += 1
+        dificil.esdeveniments.temps += 1
+    assert facil.esdeveniments.minuts() < dificil.esdeveniments.minuts()
+
+
+def test_agafada_no_surt_disparada_a_la_frenada():
+    def recorregut(ajupida):
+        p = partida(5)
+        v = p.tren.vagons[1]
+        j = p.jugador
+        j.x, j.y = v.x0 + 120, TERRA_Y
+        j.canviar("normal")
+        j.invul = 10 ** 9
+        p.esdeveniments.llançar("frenada")
+        x0 = j.x
+        for _ in range(170):
+            tecles({"avall"} if ajupida else set())
+            p.actualitzar()
+        return j.x - x0
+    assert recorregut(False) > 60
+    assert recorregut(True) < 25
+
+
+def test_desat_i_menu(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOC_DADES", str(tmp_path))
+    from motor import desat
+    d = desat.carregar()
+    assert d["dificultat"] == "normal" and not d["intro_vista"]
+    d["dificultat"] = "dificil"
+    desat.desar(d)
+    assert desat.carregar()["dificultat"] == "dificil"
+
+
+def test_intro_i_menu_porten_al_joc(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOC_DADES", str(tmp_path))
+    import main
+    joc = main.Joc()
+    assert joc.estat == "intro"
+    for _ in range(1600):
+        tecles()
+        joc.actualitzar()
+        if joc.t % 97 == 0:
+            joc.dibuixar()
+    assert joc.estat == "titol"
+    joc.dibuixar()
+    tecles(prem={"avall"})
+    joc.actualitzar()
+    tecles(prem={"dre"})
+    joc.actualitzar()
+    assert joc.dades["dificultat"] == "dificil"
+    tecles(prem={"amunt"})
+    joc.actualitzar()
+    tecles(prem={"acceptar"})
+    joc.actualitzar()
+    assert joc.estat == "joc" and joc.partida.nom_dificultat == "dificil"
+    joc2 = main.Joc()                       # la segona vegada ja no surt la intro
+    assert joc2.estat == "titol"

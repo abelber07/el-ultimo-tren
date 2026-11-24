@@ -5,6 +5,7 @@ import random
 import pygame
 
 from joc import enemics, objectes
+from joc.dificultat import dades as dades_dificultat
 from joc.esdeveniments import Esdeveniments
 from joc.jugador import Jugador
 from joc.mon import PARET, PORTA_H, SOSTRE_Y, TERRA_Y, TUNEL_Y, VIA_Y
@@ -38,16 +39,19 @@ def _forat_llum(r, fosc):
 
 
 class Partida:
-    def __init__(self, atles, atrezzo, llavor=None, paisatge=None):
+    def __init__(self, atles, atrezzo, llavor=None, paisatge=None, dificultat="normal"):
+        self.nom_dificultat = dificultat
+        self.dif = dades_dificultat(dificultat)
         self.llavor = llavor if llavor is not None else random.randrange(1 << 30)
         self.rng = random.Random(self.llavor)
         random.seed(self.llavor)              # enemics i objectes: la mateixa nit amb la mateixa llavor
         self.atles, self.atr = atles, atrezzo
         self.tren = Tren(self.llavor)
         self.paisatge = paisatge or Paisatge()
-        self.esdeveniments = Esdeveniments(self.tren.llarg, self.llavor)
+        self.esdeveniments = Esdeveniments(self.tren.llarg, self.llavor, self.dif["nit"])
         v0 = self.tren.vagons[0]
         self.jugador = Jugador(v0.x0 + 70, TERRA_Y)
+        self.jugador.vida = self.jugador.vida_max = self.dif["vida"]
         self.jugador.canviar("tombat")
         self.jugador.t = -40
         self.enemics = []
@@ -55,10 +59,19 @@ class Partida:
         self.projectils = []
         self.efectes = []
         for v in self.tren.vagons:
+            factor = self.dif["enemics"]
             for tipus, x, y, op in v.spawns:
-                self.enemics.append(enemics.TIPUS[tipus](x, y, v.idx, op))
+                if factor < 1 and self.rng.random() > factor:
+                    continue
+                self._crear_enemic(tipus, x, y, v.idx, op)
+                if factor > 1 and tipus != "maleta" and self.rng.random() < factor - 1:
+                    a, b = v.ix(60, 40)
+                    self._crear_enemic(tipus, self.rng.randint(a, b), y, v.idx, op)
             for tipus, x, y in v.objectes:
-                self.objectes.append(objectes.crear(tipus, x, y))
+                o = objectes.crear(tipus, x, y)
+                if hasattr(o, "preu"):
+                    o.preu = max(1, round(o.preu * self.dif["preus"]))
+                self.objectes.append(o)
         self.cam = 0.0
         self.empenta = 0.0
         self.atur = 0
@@ -75,12 +88,21 @@ class Partida:
         self.forat = _forat_llum(70, (6, 6, 14))
         self.forat_llum = _forat_llum(46, (6, 6, 14))
         self.foscor = pygame.Surface((W, H), pygame.SRCALPHA)
+        self.capa_fletxes = pygame.Surface((W, H), pygame.SRCALPHA)
+        self.ratlles = []              # [x, y, llarg, edat] ratlles d'aire de les frenades
         self.prompt = None
         for v in self.tren.vagons:
             v.surf = pintar_vago(v, self.atr)
         self._actualitzar_portes()
         self.camera(immediata=True)
         self.mostrar_rotul(self.tren.vagons[0])
+
+    def _crear_enemic(self, tipus, x, y, vago, op):
+        e = enemics.TIPUS[tipus](x, y, vago, op)
+        e.vida += self.dif["vida_enemics"]
+        e.agressio = self.dif["agressio"]
+        self.enemics.append(e)
+        return e
 
     # --- utilitats per als altres -----------------------------------------------------------
     def text(self, x, y, txt, color):
@@ -193,7 +215,9 @@ class Partida:
         self.paisatge.avançar(9.0 * es.velocitat)
         self.empenta = es.empenta()
         j = self.jugador
-        j.empenta = 0.0 if j.estat == "escala" else self.empenta * (0.5 if j.ajupit else 1.0)
+        j.frenada = es.frenant()
+        agarre = 0.08 if j.frenada else 0.5                  # ajupida s'agafa: a la frenada gairebé no es mou
+        j.empenta = 0.0 if j.estat == "escala" else self.empenta * (agarre if j.ajupit else 1.0)
         if j.estat == "tombat" and j.t < 0:
             j.empenta = 0.0
         j.actualitzar(self)
@@ -206,6 +230,7 @@ class Partida:
                 if e.xoc_paret and abs(e.xoc_paret) > 3.6 and es.frenant() and not e.mort:
                     e.rebre(self, 1, e.x - math.copysign(10, e.xoc_paret))
                     self.text(e.x, e.y - e.alt - 6, "¡PLAF!", (255, 200, 160))
+        self._efectes_frenada()
         self._combat()
         for o in self.objectes:
             if abs(o.x - j.x) < 900:
@@ -333,6 +358,53 @@ class Partida:
         else:
             self.cam += (objectiu - self.cam) * 0.08
 
+    def _efectes_frenada(self):
+        """Espurnes a les rodes, el cop de tot el tren i ratlles d'aire que mostren cap a on empeny."""
+        es = self.esdeveniments
+        if es.frenant():
+            f = es.forca_frenada()
+            if f > 0.97:
+                self.tremolor = max(self.tremolor, 14)
+            cam = self.cam
+            for v in self.tren.vagons:
+                if v.x1 < cam - 40 or v.x0 > cam + W + 40:
+                    continue
+                for rx in (44, 88, v.ample - 88, v.ample - 44):
+                    for _ in range(2 if self.rng.random() < f else 1):
+                        x = v.x0 + rx + self.rng.uniform(-6, 6)
+                        self.efectes.append(dibuix.Particula(
+                            x, VIA_Y - 2, -self.rng.uniform(2, 6), -self.rng.uniform(0.5, 2.6),
+                            self.rng.choice([(255, 220, 120), (255, 170, 60), (255, 250, 200)]),
+                            vida=self.rng.randint(10, 22), mida=3.2, grav=0.18, frec=0.94))
+            if self.rng.random() < 0.8 * f:
+                y = self.rng.randint(150, TERRA_Y - 8)
+                self.ratlles.append([cam + self.rng.randint(-40, W), y, self.rng.randint(14, 40), 0])
+        for r in self.ratlles:
+            r[0] += 9
+            r[3] += 1
+        self.ratlles = [r for r in self.ratlles if r[3] < 22]
+
+    def _dibuixar_frenada(self, surf, cam):
+        es = self.esdeveniments
+        for x, y, llarg, t in self.ratlles:
+            pygame.draw.line(surf, (220, 214, 200), (x - cam - llarg, y), (x - cam, y))
+            if t < 10:
+                surf.set_at((int(x - cam), y), (255, 255, 240))
+        f = es.forca_frenada()
+        if f > 0:
+            # fletxes grosses i transparents cap a on t'empeny el tren
+            capa = self.capa_fletxes
+            capa.fill((0, 0, 0, 0))
+            a = int(80 * f)
+            off = (es.temps * 7) % 130
+            for i in range(-1, 6):
+                x = i * 130 + off
+                for dx in (0, 22):
+                    pts = [(x + dx, 150), (x + dx + 24, 190), (x + dx, 230), (x + dx - 12, 230),
+                           (x + dx + 12, 190), (x + dx - 12, 150)]
+                    pygame.draw.polygon(capa, (255, 236, 200, a), pts)
+            surf.blit(capa, (0, 0))
+
     # --- dibuix --------------------------------------------------------------------------------
     def dibuixar(self, surf, hud=True):
         es = self.esdeveniments
@@ -386,6 +458,7 @@ class Partida:
             pr.dibuixar(surf, cam, self.atr)
         for ef in self.efectes:
             ef.dibuixar(surf, cam)
+        self._dibuixar_frenada(surf, cam)
         if trams:
             self._foscor(surf, trams, cam)
         if hud:
@@ -409,6 +482,39 @@ class Partida:
         r = self.forat.get_width() // 2
         f.blit(self.forat, (round(j.x - cam) - r, round(j.y - 16) - r), special_flags=pygame.BLEND_RGBA_MIN)
         surf.blit(f, (0, 0))
+
+    def _avis_frenada(self, surf, y):
+        """Cartell de l'avís: què passarà, cap a on empeny i què cal fer; amb una barra que s'escurça."""
+        es = self.esdeveniments
+        j = self.jugador
+        r = pygame.Rect(0, 0, 250, 40)
+        r.midtop = (W // 2, y)
+        avis = es.avis_frenada()
+        parpelleig = avis and es.falta_frenada() < 0.35 and (self.t // 4) % 2
+        vora = (255, 120, 90) if parpelleig else (200, 90, 70)
+        dibuix.caixa(surf, r, fons=(40, 12, 12), vora=vora)
+        agafada = j.ajupit and j.a_terra
+        if avis:
+            titol = "¡FRENAZO!"
+        else:
+            titol = "¡AGARRADA!" if agafada else "¡FRENANDO!"
+        text(surf, titol, F_NEGRETA, (255, 170, 130), (r.left + 74, r.top + 13))
+        consell = "aguanta S..." if agafada else "agáchate (S) para agarrarte"
+        text(surf, consell, F_PETITA, CREMA, (r.left + 74, r.top + 27))
+        # fletxa: el tren t'empeny cap endavant (a la dreta)
+        fx, fy = r.right - 58, r.centery - 3
+        col = (255, 210, 150)
+        empeny = 0 if avis else (self.t // 3) % 6
+        for dx in (0, 14):
+            x = fx + dx + empeny
+            pygame.draw.polygon(surf, col, [(x, fy - 8), (x + 9, fy), (x, fy + 8), (x - 5, fy + 8), (x + 4, fy),
+                                            (x - 5, fy - 8)])
+        text(surf, "empuja", F_PETITA, (200, 170, 140), (fx + 10, r.bottom - 9))
+        # barra del temps que falta
+        k = es.falta_frenada() if avis else es.forca_frenada()
+        pygame.draw.rect(surf, (80, 30, 26), (r.left + 6, r.bottom - 4, r.width - 12, 2))
+        pygame.draw.rect(surf, vora, (r.left + 6, r.bottom - 4, int((r.width - 12) * k), 2))
+        return r.bottom + 6
 
     def dibuixar_hud(self, surf):
         j = self.jugador
@@ -435,13 +541,12 @@ class Partida:
             txt = "¡TÚNEL! ¡AGÁCHATE!" if j.y <= SOSTRE_Y + 1 else "¡TÚNEL!"
             text_contorn(surf, txt, F_NEGRETA, (255, 200, 110), (W // 2, y))
             y += 16
-        if es.avis_frenada() and (self.t // 6) % 2 == 0:
-            text_contorn(surf, "¡FRENAZO! ¡AGÁRRATE!", F_NEGRETA, (255, 150, 120), (W // 2, y))
-            y += 16
+        if es.avis_frenada() or es.frenant():
+            y = self._avis_frenada(surf, y)
         if es.avis_corba():
             text_contorn(surf, "CURVA", F_NEGRETA, (200, 220, 255), (W // 2, y))
             y += 16
-        if self.rotul:
+        if self.rotul and not (es.avis_frenada() or es.frenant()):
             txt, t = self.rotul
             if t > 20 or t % 4 < 2:
                 dibuix.caixa(surf, pygame.Rect(W // 2 - 110, 78, 220, 30))

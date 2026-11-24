@@ -18,7 +18,8 @@ DURADA_FRENADA = 50
 
 
 class Esdeveniments:
-    def __init__(self, llarg_tren, llavor):
+    def __init__(self, llarg_tren, llavor, segons_minut=SEGONS_MINUT):
+        self.segons_minut = segons_minut
         self.rng = random.Random(llavor * 7 + 1)
         self.llarg = llarg_tren
         self.temps = 0
@@ -32,7 +33,7 @@ class Esdeveniments:
 
     # --- rellotge ------------------------------------------------------------------------------
     def minuts(self):
-        return self.temps / (FPS * SEGONS_MINUT)
+        return self.temps / (FPS * self.segons_minut)
 
     def hora(self):
         m = int(self.minuts())
@@ -74,6 +75,18 @@ class Esdeveniments:
             return False
         return AVIS_FRENADA <= self.temps - self.frenada < AVIS_FRENADA + DURADA_FRENADA
 
+    def forca_frenada(self):
+        """0 fora de la frenada; 1 al cop i baixant fins a 0 quan s'acaba."""
+        if not self.frenant():
+            return 0.0
+        return 1 - (self.temps - self.frenada - AVIS_FRENADA) / DURADA_FRENADA
+
+    def falta_frenada(self):
+        """0-1: quant falta perquè comenci la frenada (1 just quan sona l'avís)."""
+        if not self.avis_frenada():
+            return 0.0
+        return 1 - (self.temps - self.frenada) / AVIS_FRENADA
+
     def avis_frenada(self):
         return self.frenada is not None and self.temps - self.frenada < AVIS_FRENADA
 
@@ -81,8 +94,9 @@ class Esdeveniments:
         """Velocitat (px/fotograma) cap a on empeny el tren tot el que no està agafat."""
         e = 0.0
         if self.frenant():
-            k = (self.temps - self.frenada - AVIS_FRENADA) / DURADA_FRENADA
-            e += 4.2 * (1 - k) + 0.6
+            t = self.temps - self.frenada - AVIS_FRENADA
+            k = t / DURADA_FRENADA
+            e += min(1.0, t / 6) * (4.2 * (1 - k) + 0.6)       # entra en 6 fotogrames i s'esvaeix
         e += math.sin(self.inclinacio) * 26
         return e
 
