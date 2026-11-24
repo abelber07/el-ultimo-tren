@@ -18,7 +18,7 @@ import pygame  # noqa: E402
 W, H = 640, 360
 FPS = 60
 TITOL = "El Último Tren"
-VERSIO = "0.2"
+VERSIO = "0.3"
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -333,3 +333,58 @@ def test_revisor_agafa_i_pren_bitllets():
         if rv.estat == "agafa":
             break
     assert rv.estat == "agafa" and j.bitllets == 3
+
+
+@pytest.mark.parametrize("via", ["muntanya", "riu", "rapida"])
+def test_segon_tram_per_cada_via(via):
+    p1 = partida(2)
+    bot(p1)
+    assert p1.acabada == "tram"
+    p1.jugador.bitllets = 7
+    p2 = Partida(ATLES, ATR, llavor=p1.llavor_nit, tram=2, ruta=via, anterior=p1)
+    assert p2.tram == 2 and p2.jugador.bitllets == 7
+    assert p2.esdeveniments.temps == p1.esdeveniments.temps
+    assert all(v.tipus != "revisor" for v in p2.tren.vagons)
+    assert len(p2.tren.vagons) == (5 if via == "rapida" else 7)
+    assert (p2.boira is not None) == (via == "riu")
+    p2.dibuixar(PANTALLA.llenc)
+    bot(p2)
+    assert p2.acabada == "tram", (via, p2.vago_actual)
+
+
+def test_estacio_fonda_i_via(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOC_DADES", str(tmp_path))
+    import main
+    from joc.estacio import Estacio
+    joc = main.Joc()
+    joc.nova_partida()
+    p = joc.partida
+    p.acabada = "tram"
+    tecles()
+    p.acabada = None
+    p.jugador.x = p.tren.vagons[-1].x1 + 40
+    p.tren.vagons[-1].oberta = True
+    for e in p.enemics:
+        e.mort = True
+    for _ in range(3):
+        tecles()
+        joc.actualitzar()
+    assert joc.estat == "estacio" and isinstance(joc.estacio, Estacio)
+    est = joc.estacio
+    j = p.jugador
+    j.vida, j.bitllets = 2, 5
+    est.sel = 0
+    est.acceptar()
+    assert j.vida == 4 and j.bitllets == 2 and est.descansat
+    est.acceptar()
+    assert j.bitllets == 2
+    joc.dibuixar()
+    for _ in range(40):
+        tecles()
+        joc.actualitzar()
+    tecles(prem={"avall"})
+    joc.actualitzar()
+    tecles(prem={"acceptar"})
+    joc.actualitzar()
+    assert joc.estat == "joc" and joc.partida.tram == 2
+    assert joc.partida.jugador.bitllets == 2

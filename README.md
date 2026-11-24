@@ -35,7 +35,11 @@ También funciona con mando (A saltar, B voltereta, X usar, Y o RB golpe, LB par
 
 ## Estado
 
-**Versión 0.2: primer tramo jugable (la llanura).**
+**Versión 0.3: dos tramos, el Revisor y la primera estación.**
+
+- Novedades de la 0.3: el Revisor, jefe del primer tramo (en su propio vagón, con segunda fase a oscuras); el
+  Empalme del Cuervo, donde puedes descansar en la fonda y elegir vía (Montañas, Río con niebla o Rápida); y un
+  segundo tramo según la vía elegida.
 
 - Novedades de la 0.2: animación inicial en la estación, menú nuevo, dificultad y un frenazo que se entiende (aviso con
   cuenta atrás, la viajera se tambalea, chispas en las ruedas y flechas que marcan hacia dónde empuja).
@@ -46,8 +50,7 @@ También funciona con mando (A saltar, B voltereta, X usar, Y o RB golpe, LB par
 - Túneles (agáchate si estás en el techo), frenazos y curvas.
 - Billetes, pan, baúles y la máquina (pan y corazón de hojalata).
 
-Pendiente: el Revisor y las estaciones con elección de vía, el andén y los pasajeros rescatados, sonido y música, y los
-tramos 2-4 con sus jefes y la historia.
+Pendiente: el andén y los pasajeros rescatados, sonido y música, los jefes de los tramos 2-4 y la historia.
 
 ## Para desarrollar
 

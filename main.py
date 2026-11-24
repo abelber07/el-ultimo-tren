@@ -1,7 +1,8 @@
 """El Último Tren: un roguelike en un tren nocturn que no s'atura mai.
 
 Es juga a l'escriptori (python main.py) i al navegador (pygbag): per això el bucle és async.
-Estats: intro (l'estació) → titol (el menú) → joc ⇄ pausa → final → titol. També: controls.
+Estats: intro (l'estació) → titol (el menú) → joc ⇄ pausa → estacio (entre trams) → joc → final → titol.
+També: controls.
 """
 import asyncio
 import sys
@@ -18,6 +19,7 @@ from motor import desat  # noqa: E402
 from motor.control import CONTROL  # noqa: E402
 from motor.dibuix import F_GRAN, F_NEGRETA, F_PETITA, F_TEXT, Atles, caixa, text, text_contorn  # noqa: E402
 from joc import dificultat  # noqa: E402
+from joc.estacio import Estacio  # noqa: E402
 from joc.paisatge import Paisatge  # noqa: E402
 from joc.partida import Partida  # noqa: E402
 from joc.presentacio import FonsMenu, Intro, Logo, placa  # noqa: E402
@@ -41,6 +43,7 @@ class Joc:
         self.fons = FonsMenu(self.paisatge)
         self.partida = None
         self.intro = None
+        self.estacio = None
         self.t = 0
         self.menu = 0
         self.sortir = False
@@ -144,10 +147,34 @@ class Joc:
                 self.menu = 0
                 return
             self.partida.actualitzar()
-            if self.partida.acabada:
+            p = self.partida
+            if p.acabada == "tram" and p.tram == 1:
+                self.estacio = Estacio(p, self.paisatge, self.atles, self.atr)
+                self.estat = "estacio"
+                self.t = 0
+                self._guardar_record()
+            elif p.acabada:
                 self.estat = "final"
                 self.t = 0
                 self._guardar_record()
+            return
+        if self.estat == "estacio":
+            e = self.estacio
+            e.actualitzar()
+            if c.premut("amunt"):
+                e.moure(-1)
+            elif c.premut("avall"):
+                e.moure(1)
+            elif accepta and e.t > 30:
+                via = e.acceptar()
+                if via:
+                    ant = self.partida
+                    self.partida = Partida(self.atles, self.atr, llavor=ant.llavor_nit, paisatge=self.paisatge,
+                                           dificultat=ant.nom_dificultat, tram=ant.tram + 1, ruta=via,
+                                           anterior=ant)
+                    self.estacio = None
+                    self.estat = "joc"
+                    CONTROL.deixar_anar()
             return
         if self.estat == "pausa":
             opcions = self.opcions_pausa()
@@ -175,10 +202,14 @@ class Joc:
 
     def _guardar_record(self):
         p = self.partida
-        actual = {"vago": p.vago_actual + 1, "fi": p.acabada == "tram", "minuts": int(p.esdeveniments.minuts())}
+        fi = p.acabada == "tram"
+        actual = {"tram": p.tram + (1 if fi else 0), "vago": p.vago_actual + 1, "fi": fi and p.tram >= 2,
+                  "minuts": int(p.esdeveniments.minuts())}
+
+        def clau(m):
+            return (m.get("fi", False), m.get("tram", 1), m.get("vago", 0), -m.get("minuts", 999))
         m = self.dades.get("millor")
-        if (not m or (actual["fi"], actual["vago"], -actual["minuts"]) >
-                (m.get("fi", False), m.get("vago", 0), -m.get("minuts", 999))):
+        if not m or clau(actual) > clau(m):
             self.dades["millor"] = actual
             self.desar()
 
@@ -198,6 +229,8 @@ class Joc:
         elif self.estat == "controls":
             self.fons.dibuixar(s)
             self.dibuixar_controls(s)
+        elif self.estat == "estacio":
+            self.estacio.dibuixar(s)
         elif self.estat in ("joc", "pausa"):
             self.partida.dibuixar(s)
             if self.estat == "pausa":
@@ -232,7 +265,12 @@ class Joc:
             text(s, d["desc"], F_PETITA, (210, 196, 170), (W // 2, y0 - 14))
         m = self.dades.get("millor")
         if m:
-            rec = "Tramo 1 cruzado" if m.get("fi") else f"Mejor viaje: vagón {m['vago']} de 8"
+            if m.get("fi"):
+                rec = "Has llegado al final de esta versión"
+            elif m.get("tram", 1) > 1 and m.get("vago", 1) <= 1:
+                rec = f"Mejor viaje: llegaste al tramo {m['tram']}"
+            else:
+                rec = f"Mejor viaje: tramo {m.get('tram', 1)}, vagón {m['vago']}"
             text(s, rec, F_PETITA, (170, 156, 130), (10, H - 8), ancora="bottomleft")
         text(s, f"v{nucli.VERSIO} · un juego de Abel", F_PETITA, (150, 140, 130), (W - 10, H - 8),
              ancora="bottomright")
@@ -278,17 +316,18 @@ class Joc:
         j = p.jugador
         titols = {"mort": ("Te has quedado en el tren", (230, 120, 110)),
                   "alba": ("Ha salido el sol", (255, 190, 120)),
-                  "tram": ("Estación de la Llanura", AMBRE)}
+                  "tram": ("Fin del segundo tramo", AMBRE)}
         tit, col = titols[p.acabada]
         text_contorn(s, tit, F_GRAN, col, (W // 2, 96))
         if p.acabada == "tram":
-            text(s, "Has cruzado el primer tramo. Aquí acaba, de momento, esta versión.", F_TEXT, CREMA,
+            text(s, f"Has cruzado la {p.ruta['nom']}. Hasta aquí llega, de momento, el tren.", F_TEXT, CREMA,
                  (W // 2, 128))
         elif p.acabada == "mort":
             text(s, "Ahora eres un pasajero más.", F_TEXT, CREMA, (W // 2, 128))
         else:
             text(s, "El tren no espera a nadie.", F_TEXT, CREMA, (W // 2, 128))
-        files = [("Hora", p.esdeveniments.hora()), ("Vagones", f"{p.vago_actual + 1} de {len(p.tren.vagons)}"),
+        files = [("Hora", p.esdeveniments.hora()),
+                 ("Tramo", f"{p.tram} · vagón {p.vago_actual + 1} de {len(p.tren.vagons)}"),
                  ("Billetes", str(j.bitllets)), ("Pasajeros vencidos", str(p.baixes)),
                  ("Dificultad", dificultat.dades(p.nom_dificultat)["nom"])]
         for i, (k, v) in enumerate(files):

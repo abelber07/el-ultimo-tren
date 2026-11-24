@@ -284,7 +284,7 @@ AMPLES = {"cua": 640, "segona": 820, "llitera": 820, "restaurant": 760, "equipat
           "venedor": 560, "revisor": 760}
 
 
-def ordre_vagons(rng, n=7):
+def ordre_vagons(rng, n=7, jefe=True):
     """La cua, després vagons barrejats (sense repetir seguits) i la màquina expenedora cap al mig."""
     tipus = ["segona", "llitera", "restaurant", "equipatges", "correu"]
     seq = []
@@ -296,21 +296,25 @@ def ordre_vagons(rng, n=7):
         seq += bossa
     seq = seq[:n - 2]
     seq.insert(len(seq) // 2 + 1, "venedor")
-    return ["cua"] + seq + ["revisor"]
+    return ["cua"] + seq + (["revisor"] if jefe else [])
 
 
 # ---------------------------------------------------------------------------------------------
 class Tren:
-    def __init__(self, llavor, n=7):
+    def __init__(self, llavor, n=7, tram=1):
+        """tram 1: acaba al coche del Revisor. Trams següents (de moment sense jefe): més difícils."""
         rng = random.Random(llavor)
+        self.tram = tram
         self.vagons = []
         x = 0
-        for i, t in enumerate(ordre_vagons(rng, n)):
-            dif = min(3, i // 2)
+        for i, t in enumerate(ordre_vagons(rng, n, jefe=tram == 1)):
+            dif = min(3, i // 2 + (tram - 1))
             v = Vago(i, t, x, AMPLES[t], rng, dif)
             self.vagons.append(v)
             x = v.x1 + PAS
         self.llarg = self.vagons[-1].x1
+        if tram > 1:
+            self.vagons[0].cartells = []           # els controls només s'expliquen al primer tram
         self.terra = pygame.Rect(-400, TERRA_Y, self.llarg + 800, 80)
         self.manxes = [pygame.Rect(v.x1, MANXA_Y, PAS, 6) for v in self.vagons[:-1]]
         fi = self.vagons[-1].x1

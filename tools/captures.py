@@ -2,7 +2,7 @@
 
     python tools/captures.py carpeta_sortida [escena ...]
 
-Escenes: intro, titol, inici, segona, sostre, tunel, combat, frenada, jefe, final.
+Escenes: intro, titol, inici, segona, sostre, tunel, combat, frenada, jefe, estacio, final.
 """
 import os
 import sys
@@ -56,7 +56,7 @@ def teleport(p, vago, dx=80, y=TERRA_Y):
     return v
 
 
-escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "jefe", "final"]
+escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "jefe", "estacio", "final"]
 if "intro" in escenes:
     joc.veure_intro()
     fet = 0
@@ -197,6 +197,25 @@ if "jefe" in escenes:
     rv.rebre(p, 1, j.x)
     pas(40)
     guardar("21_jefe_vencut")
+if "estacio" in escenes:
+    from joc.estacio import Estacio
+    p = nova(4)
+    p.jugador.bitllets = 6
+    p.jugador.vida = 3
+    joc.estacio = Estacio(p, joc.paisatge, joc.atles, joc.atr)
+    joc.estat = "estacio"
+    pas(60)
+    guardar("22_estacio")
+    pas(1, prem=["avall"])
+    pas(10)
+    guardar("22_estacio_via")
+    for via in joc.estacio.vies:
+        joc.partida = Partida(joc.atles, joc.atr, llavor=p.llavor_nit, paisatge=joc.paisatge, tram=2, ruta=via,
+                              anterior=p)
+        joc.estat = "joc"
+        pas(60)
+        pas(80, tecles=["dre"])
+        guardar(f"23_tram2_{via}")
 if "final" in escenes:
     p = nova()
     p.jugador.vida = 0

@@ -18,8 +18,10 @@ DURADA_FRENADA = 50
 
 
 class Esdeveniments:
-    def __init__(self, llarg_tren, llavor, segons_minut=SEGONS_MINUT):
+    def __init__(self, llarg_tren, llavor, segons_minut=SEGONS_MINUT, pesos=(0.45, 0.25, 0.3), interval=(22, 38)):
         self.segons_minut = segons_minut
+        self.pesos = pesos
+        self.interval = interval
         self.rng = random.Random(llavor * 7 + 1)
         self.llarg = llarg_tren
         self.temps = 0
@@ -124,8 +126,8 @@ class Esdeveniments:
                 k = min(1.0, max(0.0, (t - 40) / rampa), max(0.0, (dur - t) / rampa))
                 self.inclinacio = ang * (0.5 - 0.5 * math.cos(math.pi * k))
         if self.temps >= self.proper and not self.ocupat():
-            self.llançar(self.rng.choices(["tunel", "frenada", "corba"], [0.45, 0.25, 0.3])[0])
-            self.proper = self.temps + self.rng.randint(22, 38) * FPS
+            self.llançar(self.rng.choices(["tunel", "frenada", "corba"], self.pesos)[0])
+            self.proper = self.temps + self.rng.randint(*self.interval) * FPS
 
     def ocupat(self):
         return bool(self.tunels) or self.frenada is not None or self.corba is not None

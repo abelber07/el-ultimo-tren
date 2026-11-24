@@ -7,6 +7,7 @@ import pygame
 from joc import enemics, objectes
 from joc import jefe
 from joc.dificultat import dades as dades_dificultat
+from joc.rutes import ruta as dades_ruta
 from joc.esdeveniments import Esdeveniments
 from joc.jugador import Jugador
 from joc.mon import PARET, PORTA_H, SOSTRE_Y, TERRA_Y, TUNEL_Y, VIA_Y
@@ -42,21 +43,37 @@ def _forat_llum(r, fosc):
 
 
 class Partida:
-    def __init__(self, atles, atrezzo, llavor=None, paisatge=None, dificultat="normal"):
+    def __init__(self, atles, atrezzo, llavor=None, paisatge=None, dificultat="normal", tram=1, ruta=None,
+                 anterior=None):
+        """tram 2+: `ruta` és la via triada a l'estació i `anterior` la partida del tram d'abans (vida, bitllets,
+        rellotge i baixes continuen)."""
         self.nom_dificultat = dificultat
         self.dif = dades_dificultat(dificultat)
-        self.llavor = llavor if llavor is not None else random.randrange(1 << 30)
+        self.tram = tram
+        self.nom_ruta = ruta
+        self.ruta = dades_ruta(ruta)
+        self.llavor_nit = llavor if llavor is not None else random.randrange(1 << 30)
+        self.llavor = self.llavor_nit if tram == 1 else self.llavor_nit * 31 + tram
         self.rng = random.Random(self.llavor)
         random.seed(self.llavor)              # enemics i objectes: la mateixa nit amb la mateixa llavor
         self.atles, self.atr = atles, atrezzo
-        self.tren = Tren(self.llavor)
+        self.tren = Tren(self.llavor, n=self.ruta["vagons"], tram=tram)
         self.paisatge = paisatge or Paisatge()
-        self.esdeveniments = Esdeveniments(self.tren.llarg, self.llavor, self.dif["nit"])
+        self.esdeveniments = Esdeveniments(self.tren.llarg, self.llavor, self.dif["nit"], self.ruta["pesos"],
+                                           self.ruta["interval"])
         v0 = self.tren.vagons[0]
         self.jugador = Jugador(v0.x0 + 70, TERRA_Y)
         self.jugador.vida = self.jugador.vida_max = self.dif["vida"]
-        self.jugador.canviar("tombat")
-        self.jugador.t = -40
+        if anterior is not None:
+            ja = anterior.jugador
+            self.jugador.vida_max = ja.vida_max
+            self.jugador.vida = ja.vida
+            self.jugador.bitllets = ja.bitllets
+            self.esdeveniments.temps = anterior.esdeveniments.temps
+            self.esdeveniments.proper = self.esdeveniments.temps + 20 * 60
+        if anterior is None:
+            self.jugador.canviar("tombat")
+            self.jugador.t = -40
         self.enemics = []
         self.objectes = []
         self.projectils = []
@@ -73,7 +90,8 @@ class Partida:
                 if factor > 1 and tipus != "maleta" and self.rng.random() < factor - 1:
                     a, b = v.ix(60, 40)
                     self._crear_enemic(tipus, self.rng.randint(a, b), y, v.idx, op)
-            for tipus, x, y in v.objectes:
+            extra = [o for o in v.objectes if o[0] == "bitllet"] if self.ruta["bitllets"] > 1 else []
+            for tipus, x, y in v.objectes + [(t, x + 40, y) for t, x, y in extra]:
                 o = objectes.crear(tipus, x, y)
                 if hasattr(o, "preu"):
                     o.preu = max(1, round(o.preu * self.dif["preus"]))
@@ -87,7 +105,7 @@ class Partida:
         self.missatge = None           # (text, temps)
         self.acabada = None            # "mort", "alba", "tram"
         self.t = 0
-        self.baixes = 0
+        self.baixes = anterior.baixes if anterior is not None else 0
         self.rodes = rodes()
         self.glow = _llum_radial(52, (255, 170, 70), 110)
         self.glow_petit = _llum_radial(34, (255, 170, 70), 100)
@@ -100,6 +118,7 @@ class Partida:
         self.jefe = None               # el jefe quan ja s'ha presentat
         self.jefe_fosc = False         # segona fase: llums apagats al seu vagó
         self.cartell_jefe = 0
+        self.boira = self._fer_boira() if self.ruta["boira"] else None
         self.prompt = None
         for v in self.tren.vagons:
             v.surf = pintar_vago(v, self.atr)
@@ -157,6 +176,32 @@ class Partida:
             self.afegir_objecte("pa", e.x, e.y - 10, vy=-3)
         self.tremolor = max(self.tremolor, 6)
         self.soroll(e.x, 150)
+
+    def _fer_boira(self):
+        """Capa de boira: blanquinosa i espessa, amb un forat suau al voltant de la viatgera."""
+        r = 150
+        forat = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
+        forat.fill((255, 255, 255, 255))
+        for k in range(r, 0, -3):
+            a = int(255 * min(1.0, (k / r) ** 1.6))
+            pygame.draw.circle(forat, (255, 255, 255, a), (r, r), k)
+        return {"capa": pygame.Surface((W, H), pygame.SRCALPHA), "forat": forat}
+
+    def _dibuixar_boira(self, surf, cam):
+        b = self.boira
+        capa = b["capa"]
+        t = self.t
+        capa.fill((128, 138, 160, 175))
+        for k in range(5):                                       # bancs de boira que passen
+            x = (k * 190 - t * (0.6 + k * 0.15) - cam * 0.2) % (W + 240) - 120
+            for m in range(3):
+                pygame.draw.ellipse(capa, (150, 160, 182, 185 + m * 8),
+                                    (x + m * 16, 150 + k * 34 + m * 6, 240 - m * 32, 46 - m * 12))
+        j = self.jugador
+        f = b["forat"]
+        r = f.get_width() // 2
+        capa.blit(f, (round(j.x - cam) - r, round(j.y - 24) - r), special_flags=pygame.BLEND_RGBA_MULT)
+        surf.blit(capa, (0, 0))
 
     # --- el jefe ----------------------------------------------------------------------------
     def presentar_jefe(self, e):
@@ -521,6 +566,8 @@ class Partida:
             forats.append(self.jefe.pos_farol())
         if trams:
             self._foscor(surf, trams, cam, forats)
+        if self.boira:
+            self._dibuixar_boira(surf, cam)
         if hud:
             self.dibuixar_hud(surf)
 
@@ -621,8 +668,8 @@ class Partida:
         text(surf, es.hora(), F_NEGRETA, color, (W // 2 - 14, 16), ancora="midleft")
         # vagó
         v = self.tren.vagons[self.vago_actual]
-        text(surf, f"TRAMO 1 · VAGÓN {v.idx + 1}/{len(self.tren.vagons)}", F_PETITA, CREMA, (W - 12, 12),
-             ancora="topright")
+        text(surf, f"TRAMO {self.tram} · VAGÓN {v.idx + 1}/{len(self.tren.vagons)}", F_PETITA, CREMA,
+             (W - 12, 12), ancora="topright")
         text(surf, v.nom, F_PETITA, (190, 170, 140), (W - 12, 24), ancora="topright")
         # avisos
         y = 52
@@ -645,5 +692,9 @@ class Partida:
             text_contorn(surf, self.missatge[0], F_TEXT, BLANC, (W // 2, H - 22))
         elif self.prompt:
             text_contorn(surf, self.prompt, F_TEXT, (255, 230, 160), (W // 2, H - 22))
-        elif j.estat == "tombat" and j.t < 30 and self.t < 200:
-            text_contorn(surf, "Te despiertas en el último vagón...", F_TEXT, CREMA, (W // 2, H - 22))
+        elif ((j.estat == "tombat" and j.t < 30) or self.tram > 1) and self.t < 200:
+            if self.tram == 1:
+                txt = "Te despiertas en el último vagón..."
+            else:
+                txt = f"{self.ruta['nom']}. Otra vez en el último vagón..."
+            text_contorn(surf, txt, F_TEXT, CREMA, (W // 2, H - 22))
