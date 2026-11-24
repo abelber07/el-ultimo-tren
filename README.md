@@ -1,0 +1,60 @@
+# El Último Tren
+
+Un roguelike de acción en pixel art. Te despiertas en el último vagón de un tren nocturno que no para nunca y tienes que
+llegar a la locomotora antes del amanecer, vagón a vagón.
+
+**Jugar en el navegador:** https://abelber07.github.io/el-ultimo-tren/
+
+## Cómo se juega
+
+- Cada partida es una noche: el reloj va de las 00:00 a las 06:00 (un minuto del reloj son 5 segundos). Si sale el sol, pierdes.
+- Cada vagón se genera al azar. La puerta del fondo no se abre mientras quede algún pasajero despierto dentro.
+- A los que duermen puedes dejarlos atrás si pasas agachado, sin hacer ruido.
+- Algunos vagones tienen una escotilla: por el techo vas más rápido, pero cuidado con los túneles.
+- El tren está vivo: en las curvas todo resbala, los frenazos lo lanzan todo hacia delante y en los túneles se apagan las luces.
+
+## Controles
+
+| Tecla | Acción |
+|---|---|
+| A / D (o flechas) | moverte |
+| ESPACIO | saltar |
+| S | agacharte (sin hacer ruido) |
+| S + ESPACIO | bajar de una plataforma |
+| W | subir escaleras |
+| J o clic | golpe de paraguas (tres seguidos: estocada) |
+| K o clic derecho | abrir el paraguas: para golpes; justo a tiempo, aturde |
+| MAYÚS | voltereta |
+| E | coger, lanzar y usar |
+| ESC | pausa |
+| F11 / F3 | pantalla completa / FPS |
+
+También funciona con mando (A saltar, B voltereta, X usar, Y o RB golpe, LB paraguas).
+
+## Estado
+
+**Versión 0.1: primer tramo jugable (la llanura).**
+
+- La viajera: correr, saltar, agacharse, voltereta, escaleras, paraguas (combo de tres golpes, parada y parada perfecta), coger y lanzar maletas y botellas.
+- Vagones: furgón de cola, segunda clase, coche cama, restaurante, equipajes, correo y la máquina expendedora.
+- Enemigos: el pasajero sin cara (duerme o te persigue), la maleta viva y el polizón (te roba billetes).
+- Túneles (agáchate si estás en el techo), frenazos y curvas.
+- Billetes, pan, baúles y la máquina (pan y corazón de hojalata).
+
+Pendiente: el Revisor y las estaciones con elección de vía, el andén y los pasajeros rescatados, sonido y música, y los
+tramos 2-4 con sus jefes y la historia.
+
+## Para desarrollar
+
+```
+py -3 -m venv .venv
+.venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\python main.py              # jugar en el escritorio
+.venv\Scripts\python -m pytest tests      # pruebas (incluye un bot que cruza el tramo)
+.venv\Scripts\python tools\fer_web.py     # versión web en build_web/
+```
+
+Todo el arte es pixel art generado con código (`tools/generar_*.py`, con el pintor de `tools/pintor.py`). Si cambias un
+generador, vuelve a ejecutarlo y sube los PNG/JSON de `assets/img`.
+
+Letra: Galmuri (SIL Open Font License, ver `assets/fonts/OFL-Galmuri.txt`).
