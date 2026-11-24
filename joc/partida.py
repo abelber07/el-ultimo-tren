@@ -42,6 +42,18 @@ def _forat_llum(r, fosc):
     return s
 
 
+def _cortina_vermella(ample=34, alt=170):
+    """Llum vermella que puja des de la reixa i s'esvaeix: «per aquí no es passa»."""
+    s = pygame.Surface((ample, alt))
+    for y in range(alt):
+        k = (y / alt) ** 2
+        for x in range(ample):
+            m = 1 - abs(x - ample / 2) / (ample / 2)
+            c = int(105 * k * m)
+            s.set_at((x, y), (c, c // 5, c // 6))
+    return s
+
+
 class Partida:
     def __init__(self, atles, atrezzo, llavor=None, paisatge=None, dificultat="normal", tram=1, ruta=None,
                  anterior=None):
@@ -113,6 +125,8 @@ class Partida:
         self.forat_llum = _forat_llum(46, (6, 6, 14))
         self.foscor = pygame.Surface((W, H), pygame.SRCALPHA)
         self.capa_fletxes = pygame.Surface((W, H), pygame.SRCALPHA)
+        self.cortina_barrera = _cortina_vermella()
+        self.glow_vermell = _llum_radial(20, (255, 60, 40), 90)
         self.ratlles = []              # [x, y, llarg, edat] ratlles d'aire de les frenades
         self.perills = []              # ones de la perforadora
         self.jefe = None               # el jefe quan ja s'ha presentat
@@ -200,7 +214,7 @@ class Partida:
         j = self.jugador
         f = b["forat"]
         r = f.get_width() // 2
-        capa.blit(f, (round(j.x - cam) - r, round(j.y - 24) - r), special_flags=pygame.BLEND_RGBA_MULT)
+        capa.blit(f, (round(j.x - cam) - r, round(j.y - 27) - r), special_flags=pygame.BLEND_RGBA_MULT)
         surf.blit(capa, (0, 0))
 
     # --- el jefe ----------------------------------------------------------------------------
@@ -262,12 +276,12 @@ class Partida:
     def llançar(self, j):
         o = j.porta
         j.porta = None
-        self.projectils.append(objectes.Projectil(o.tipus, j.x + j.dir * 8, j.y - 30, j.dir, o.dany))
+        self.projectils.append(objectes.Projectil(o.tipus, j.x + j.dir * 8, j.y - 33, j.dir, o.dany))
 
     def deixar_caure(self, j):
         o = j.porta
         j.porta = None
-        o.x, o.y = j.x, j.y - 30
+        o.x, o.y = j.x, j.y - 34
         o.vx, o.vy = -j.dir * 1.5, -2
         self.objectes.append(o)
 
@@ -443,8 +457,11 @@ class Partida:
                     self.vago_actual = v.idx
                 break
         v = self.tren.vagons[self.vago_actual]
-        if not v.oberta and abs(j.x - (v.x1 - PARET)) < 14 and j.y > TERRA_Y - PORTA_H and not self.missatge:
-            self.missatge_curt("La puerta no se abre mientras haya pasajeros despiertos", 120)
+        if not v.oberta and abs(j.x - (v.x1 - PARET)) < 14 and not self.missatge:
+            if j.y > TERRA_Y - PORTA_H:
+                self.missatge_curt("La puerta no se abre mientras haya pasajeros despiertos", 120)
+            elif j.y <= SOSTRE_Y + 1:
+                self.missatge_curt("Por arriba tampoco: antes hay que vaciar este vagón", 120)
 
     def camera(self, immediata=False):
         j = self.jugador
@@ -552,8 +569,11 @@ class Partida:
             o.dibuixar(surf, cam)
         j = self.jugador
         j.dibuixar(surf, cam, self.atles)
+        for v in self.tren.vagons:                       # les reixes del sostre, per davant de la viatgera
+            if not v.oberta and -40 < v.x1 - cam < W + 40:
+                self._barrera(surf, v.x1 - 13 - cam)
         if j.porta:
-            self.atr.dibuixar(surf, j.porta.tipus, j.x - cam, j.y - 31)
+            self.atr.dibuixar(surf, j.porta.tipus, j.x - cam, j.y - 37)
         for pr in self.projectils:
             pr.dibuixar(surf, cam, self.atr)
         for ef in self.efectes:
@@ -570,6 +590,39 @@ class Partida:
             self._dibuixar_boira(surf, cam)
         if hud:
             self.dibuixar_hud(surf)
+
+    def _barrera(self, surf, x):
+        """La reixa del sostre al final d'un vagó amb la porta tancada, amb una cortina de llum vermella i un llum
+        que parpelleja: per dalt tampoc es passa fins que el vagó és buit."""
+        x = round(x)
+        y = SOSTRE_Y
+        cortina = self.cortina_barrera
+        surf.blit(cortina, (x - cortina.get_width() // 2, y - cortina.get_height()),
+                  special_flags=pygame.BLEND_RGB_ADD)
+        ferro, clar, fosc = (34, 34, 46), (96, 98, 116), (12, 12, 18)
+        alt = 50
+        for dx in (-11, 11):                                             # pals
+            pygame.draw.rect(surf, fosc, (x + dx - 3, y - alt - 1, 6, alt + 1))
+            pygame.draw.rect(surf, ferro, (x + dx - 2, y - alt, 4, alt))
+            pygame.draw.line(surf, clar, (x + dx - 1, y - alt), (x + dx - 1, y - 1))
+        for k in range(-7, 8, 7):                                        # barrots amb punta
+            pygame.draw.line(surf, fosc, (x + k + 1, y - alt + 4), (x + k + 1, y - 1), 2)
+            pygame.draw.line(surf, ferro, (x + k, y - alt + 4), (x + k, y - 1), 2)
+            pygame.draw.polygon(surf, ferro, [(x + k - 2, y - alt + 5), (x + k, y - alt), (x + k + 2, y - alt + 5)])
+        for yy in (y - alt + 10, y - 14):                                # travessers
+            pygame.draw.line(surf, fosc, (x - 11, yy + 1), (x + 11, yy + 1), 2)
+            pygame.draw.line(surf, ferro, (x - 11, yy), (x + 11, yy), 2)
+            pygame.draw.line(surf, clar, (x - 11, yy - 1), (x + 11, yy - 1))
+        # placa vermella amb una creu
+        pygame.draw.rect(surf, fosc, (x - 6, y - 34, 12, 10))
+        pygame.draw.rect(surf, (150, 34, 30), (x - 5, y - 33, 10, 8))
+        pygame.draw.line(surf, (255, 220, 200), (x - 2, y - 31), (x + 2, y - 27))
+        pygame.draw.line(surf, (255, 220, 200), (x + 2, y - 31), (x - 2, y - 27))
+        enc = (self.t // 20) % 2 == 0
+        pygame.draw.circle(surf, fosc, (x, y - alt - 5), 4)
+        pygame.draw.circle(surf, (255, 70, 50) if enc else (110, 30, 26), (x, y - alt - 5), 3)
+        if enc:
+            surf.blit(self.glow_vermell, (x - 20, y - alt - 25), special_flags=pygame.BLEND_RGB_ADD)
 
     def _manxa(self, surf, x):
         pygame.draw.rect(surf, (30, 26, 32), (x, 140, 30, TERRA_Y - 140))
@@ -589,7 +642,7 @@ class Partida:
             f.fill((6, 6, 14, 215), (max(0, int(a)), y0, max(0, int(min(W, b) - max(0, a))), y1 - y0))
         j = self.jugador
         r = self.forat.get_width() // 2
-        f.blit(self.forat, (round(j.x - cam) - r, round(j.y - 16) - r), special_flags=pygame.BLEND_RGBA_MIN)
+        f.blit(self.forat, (round(j.x - cam) - r, round(j.y - 19) - r), special_flags=pygame.BLEND_RGBA_MIN)
         for fx, fy in forats:
             f.blit(self.forat, (round(fx - cam) - r, round(fy) - r), special_flags=pygame.BLEND_RGBA_MIN)
         surf.blit(f, (0, 0))

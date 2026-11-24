@@ -26,7 +26,8 @@ No tiene nada que ver con NEXUS (otro juego suyo): de allí solo viene el pintor
 | `joc/dificultat.py` | los tres niveles (`DIFICULTATS`) |
 | `joc/jefe.py` | el Revisor (jefe del tramo 1) y su onda |
 | `joc/rutes.py`, `joc/estacio.py` | las vías que se eligen entre tramos y la estación (fonda + elección) |
-| `joc/exterior.py`, `joc/presentacio.py` | el tren visto de fuera; logo, menú y la animación inicial (`Intro`) |
+| `joc/exterior.py`, `joc/presentacio.py` | el tren visto de fuera; logo, fondo del menú y la animación inicial (`Intro`) |
+| `joc/interficie.py` | el estilo de todos los menús: `panell`, `separador`, `cinta` + `bitllet` (opción elegida), `llista` |
 | `tools/` | generadores de arte, `captures.py` (capturas sin ventana), `fer_web.py` (build de pygbag) |
 | `tests/` | pruebas con `JOC_FINESTRA=0`, incluido un bot que cruza el tramo entero |
 

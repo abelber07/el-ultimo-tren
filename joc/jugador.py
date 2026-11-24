@@ -4,8 +4,12 @@ import pygame
 from joc.mon import SOSTRE_Y, TERRA_Y, Cos
 from motor.control import CONTROL
 
-VEL = 2.4
+VEL = 2.5
 VEL_SIGIL = 1.0
+ACC_TERRA = 0.42                # acceleració a terra (px/fotograma²) i a l'aire
+ACC_AIRE = 0.3
+FRE_TERRA = 0.55                # frenada sense tecles (quant es perd per fotograma)
+GRAV_CIM = 0.55                 # al cim del salt, amb el botó premut, la gravetat afluixa (salts més suaus)
 VEL_PARA = 0.7
 SALT = -7.8
 COYOTE = 6
@@ -19,15 +23,15 @@ VIDA_INICIAL = 5
 
 # cops: (fotogrames totals, primer actiu, últim actiu, dany, rect relatiu (dx, dy, w, h), poses)
 COPS = [
-    (17, 3, 8, 1, (4, -30, 30, 26), (("cop0", 3), ("cop1", 6), ("cop2", 99))),
-    (17, 3, 8, 1, (4, -30, 30, 26), (("cop0", 3), ("cop1", 6), ("cop2", 99))),
-    (24, 5, 11, 2, (6, -22, 38, 10), (("esto0", 5), ("esto1", 99))),
+    (17, 3, 8, 1, (4, -33, 32, 28), (("cop0", 3), ("cop1", 6), ("cop2", 99))),
+    (17, 3, 8, 1, (4, -33, 32, 28), (("cop0", 3), ("cop1", 6), ("cop2", 99))),
+    (24, 5, 11, 2, (6, -25, 40, 10), (("esto0", 5), ("esto1", 99))),
 ]
 
 
 class Jugador(Cos):
     ample = 12
-    alt = 30
+    alt = 34
 
     def __init__(self, x, y):
         super().__init__(x, y)
@@ -53,10 +57,13 @@ class Jugador(Cos):
         self.frenada = False          # el tren està frenant (canvia la postura)
         self.cops_rebuts = 0
         self.morts = 0
+        self.aterra = 0               # fotogrames de la postura d'aterrar
+        self.gira = 0                 # fotogrames de derrapada en girar corrent
+        self.pas = 0.0                # per a la pols de les passes
 
     # --- utilitats ---------------------------------------------------------------------------
     def rect(self):
-        return super().rect(18 if self.ajupit or self.estat in ("volta", "tombat") else self.alt)
+        return super().rect(20 if self.ajupit or self.estat in ("volta", "tombat") else self.alt)
 
     def silenciós(self):
         return self.ajupit or self.estat == "escala"
@@ -165,13 +172,19 @@ class Jugador(Cos):
         vel = VEL_SIGIL if self.ajupit else (VEL_PARA if e == "para" else VEL)
         if self.porta:
             vel *= 0.85
+        propi = self.vx - self.empenta
+        if dx_in and self.a_terra and e == "normal" and propi * dx_in < -1.6 and not self.ajupit:
+            self.gira = 9                                     # derrapa abans de girar-se
+            p.pols(self.x + propi * 3, self.y, 3)
         if dx_in and e != "para":
             self.dir = dx_in
         objectiu = dx_in * vel
-        acc = 0.5 if self.a_terra else 0.3
-        self.vx += max(-acc, min(acc, objectiu - (self.vx - self.empenta)))
+        acc = ACC_TERRA if self.a_terra else ACC_AIRE
+        if self.gira:
+            acc *= 0.6
+        self.vx += max(-acc, min(acc, objectiu - propi))
         if not dx_in and self.a_terra:
-            self.vx = self.vx * 0.6 + self.empenta * 0.4
+            self.vx = self.empenta + propi * FRE_TERRA
         # escales
         if (c.aguantat("amunt") or c.premut("amunt")) and not self.porta and e != "para":
             ex = tren.escala_a(self.x, self.y)
@@ -218,9 +231,23 @@ class Jugador(Cos):
                 p.usar(self)
         if self.estat == "para":
             self.para_t += 1
+        vy0, terra0 = self.vy, self.a_terra
+        if not self.a_terra and abs(self.vy) < 1.3 and c.aguantat("salt"):
+            self.vy += GRAV_CIM - 0.36                        # moure() hi suma la gravetat normal
         self.moure(tren)
+        if self.a_terra and not terra0 and vy0 > 3.2:
+            self.aterra = 7 if vy0 > 6 else 4
+            p.pols(self.x, self.y, 5 if vy0 > 6 else 3)
+        if self.aterra:
+            self.aterra -= 1
+        if self.gira:
+            self.gira -= 1
         if self.a_terra and dx_in:
-            self.anim += abs(self.vx) / 14
+            self.anim += abs(self.vx - self.empenta) / 15
+            self.pas += abs(self.vx - self.empenta)
+            if self.pas > 34 and not self.ajupit:
+                self.pas = 0
+                p.pols(self.x - self.dir * 4, self.y, 1)
         if self.y > TERRA_Y + 200:
             self.y = TERRA_Y
             self.vy = 0
@@ -321,16 +348,25 @@ class Jugador(Cos):
                 return "porta0"
             return "portac%d" % (int(self.anim) % 4) if abs(self.vx - self.empenta) > 0.3 else "porta0"
         if not self.a_terra:
-            return "salt" if self.vy < 0 else "caiguda"
+            if abs(self.vy) < 1.3:
+                return "salt_cim"
+            return "salt" if self.vy < 0 else "caiguda%d" % ((self.t // 5) % 2)
         if self.frenada and e == "normal":
             if self.ajupit:
                 return "agafada"
             return ("trontolla_d%d" if self.dir > 0 else "trontolla_e%d") % ((self.t // 6) % 2)
         if self.ajupit:
             return "sigil%d" % (int(self.anim * 2) % 4) if abs(self.vx - self.empenta) > 0.3 else "ajup"
-        if abs(self.vx - self.empenta) > 0.4:
-            return "corre%d" % (int(self.anim * 1.5) % 6)
-        return "quiet%d" % ((self.t // 40) % 2)
+        if self.gira:
+            return "gira"
+        if self.aterra:
+            return "aterra"
+        propi = abs(self.vx - self.empenta)
+        if propi > 1.6:
+            return "corre%d" % (int(self.anim * 2) % 8)
+        if propi > 0.4:
+            return "arrenca%d" % (int(self.anim * 2) % 2)
+        return "quiet%d" % ((self.t // 18) % 4)
 
     def dibuixar(self, surf, cam, atles):
         if self.invul and self.estat != "mort" and (self.invul // 4) % 2:

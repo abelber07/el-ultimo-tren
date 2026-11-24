@@ -388,3 +388,40 @@ def test_estacio_fonda_i_via(tmp_path, monkeypatch):
     joc.actualitzar()
     assert joc.estat == "joc" and joc.partida.tram == 2
     assert joc.partida.jugador.bitllets == 2
+
+
+def test_pel_sostre_no_es_pot_saltar_un_vago_tancat():
+    p = partida(3)
+    v = p.tren.vagons[1]
+    e = enemics.SenseCara(v.x0 + 100, TERRA_Y, 1)
+    p.enemics.append(e)
+    p._actualitzar_portes()
+    assert not v.oberta
+    j = p.jugador
+    j.canviar("normal")
+    j.x, j.y = v.x1 - 200, SOSTRE_Y
+    j.invul = 10 ** 9
+    e.canviar("quiet")
+    for f in range(300):
+        tecles({"dre"} | ({"salt"} if f % 30 < 16 else set()), {"salt"} if f % 30 == 0 else set())
+        p.actualitzar()
+    assert j.x < v.x1, "ha passat per dalt d'un vagó amb la porta tancada"
+
+
+def test_menu_amb_el_ratoli(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOC_DADES", str(tmp_path))
+    import main
+    joc = main.Joc()
+    joc.anar_titol()
+    tecles()
+    joc.t = 20
+    joc.dibuixar()                            # calcula on és cada opció
+    joc.ratoli = joc.rects[2].center
+    tecles()
+    joc.actualitzar()
+    assert joc.menu == 2
+    joc.dibuixar()
+    joc.clic = joc.ratoli = joc.rects[0].center
+    tecles()
+    joc.actualitzar()
+    assert joc.estat == "joc"

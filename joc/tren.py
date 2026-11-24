@@ -91,6 +91,8 @@ class Vago:
         s += self.blocs
         self.solids = s
         self.porta_rect = pygame.Rect(self.x1 - PARET, TERRA_Y - PORTA_H, PARET, PORTA_H)
+        # la barrera del sostre: mentre la porta és tancada tampoc es pot passar per dalt
+        self.barrera_rect = pygame.Rect(self.x1 - 26, SOSTRE_Y - 400, 26, 400)
 
     def escala_a(self, x, y):
         """L'escotilla amb escala a tocar de (x, y) o None."""
@@ -339,8 +341,10 @@ class Tren:
                     plats += self.vagons[j].plats
             solids += [m for m in self.manxes if abs(m.x - x) < 1200]
             c = self._cache[i] = (solids, plats)
-        portes = [self.vagons[j].porta_rect for j in (i - 1, i, i + 1)
-                  if 0 <= j < len(self.vagons) and not self.vagons[j].oberta]
+        portes = []
+        for j in (i - 1, i, i + 1):
+            if 0 <= j < len(self.vagons) and not self.vagons[j].oberta:
+                portes += [self.vagons[j].porta_rect, self.vagons[j].barrera_rect]
         if portes:
             return c[0] + portes, c[1]
         return c

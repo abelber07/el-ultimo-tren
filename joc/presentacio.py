@@ -69,37 +69,48 @@ class Logo:
     def __init__(self):
         self.text, self.mascara = _text_or("EL ÚLTIMO TREN", F_TITOL)
         tw, th = self.text.get_size()
-        w, h = tw + 56, th + 30
+        w, h = tw + 48, th + 20
         marge = 40
         self.surf = pygame.Surface((w + marge * 2, h + 36), pygame.SRCALPHA)
         s = self.surf
         r = pygame.Rect(marge, 22, w, h)
-        # volutes
-        _espiral(s, r.left - 6, r.centery, -1)
-        _espiral(s, r.right + 5, r.centery, 1)
-        # cresta: mig sol amb raigs
-        cx, cy = r.centerx, r.top + 2
-        pygame.draw.circle(s, FOSC, (cx, cy), 21)
-        pygame.draw.circle(s, LLAUTO[1], (cx, cy), 19)
-        for i in range(9):
-            a = math.pi + math.pi * (i + 0.5) / 9
-            p = (cx + math.cos(a) * 18, cy + math.sin(a) * 18)
-            pygame.draw.line(s, LLAUTO[3], (cx + math.cos(a) * 7, cy + math.sin(a) * 7), p, 2)
-        pygame.draw.circle(s, LLAUTO[4], (cx, cy - 1), 5)
-        pygame.draw.circle(s, LLAUTO[2], (cx, cy), 4)
-        # la placa: vores de llautó i fons granat
-        pygame.draw.rect(s, FOSC, r.inflate(6, 6), border_radius=7)
-        pygame.draw.rect(s, LLAUTO[1], r.inflate(2, 2), border_radius=6)
-        pygame.draw.rect(s, LLAUTO[3], r, border_radius=5)
+        cx = r.centerx
+        # la placa: hexàgon allargat (puntes als costats), vores de llautó i fons granat
+        P = 14
+
+        def forma(rr, p):
+            return [(rr.left, rr.top), (rr.right, rr.top), (rr.right + p, rr.centery), (rr.right, rr.bottom),
+                    (rr.left, rr.bottom), (rr.left - p, rr.centery)]
+        pygame.draw.polygon(s, FOSC, forma(r.inflate(6, 6), P + 2))
+        pygame.draw.polygon(s, LLAUTO[1], forma(r.inflate(2, 2), P + 1))
+        pygame.draw.polygon(s, LLAUTO[3], forma(r, P))
         dins = r.inflate(-6, -6)
-        pygame.draw.rect(s, LLAUTO[0], dins.inflate(2, 2), border_radius=4)
+        pygame.draw.polygon(s, LLAUTO[0], forma(dins.inflate(2, 2), P - 2))
+        grad = pygame.Surface(s.get_size(), pygame.SRCALPHA)
         for y in range(dins.height):
             k = y / dins.height
-            col = (int(66 - 30 * k), int(24 - 12 * k), int(26 - 12 * k))
-            pygame.draw.line(s, col, (dins.left + (2 if y < 2 or y > dins.height - 3 else 0), dins.top + y),
-                             (dins.right - 1 - (2 if y < 2 or y > dins.height - 3 else 0), dins.top + y))
-        pygame.draw.line(s, LLAUTO[4], (r.left + 5, r.top), (r.right - 6, r.top))
+            grad.fill((int(70 - 34 * k), int(24 - 12 * k), int(26 - 12 * k), 255), (0, dins.top + y, s.get_width(), 1))
+        masc = pygame.Surface(s.get_size(), pygame.SRCALPHA)
+        pygame.draw.polygon(masc, (255, 255, 255, 255), forma(dins, P - 3))
+        grad.blit(masc, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        s.blit(grad, (0, 0))
+        pygame.draw.line(s, LLAUTO[4], (r.left + 1, r.top), (r.right - 1, r.top))
         _reblons(s, dins)
+        # cresta: un arc de llautó amb la silueta d'una locomotora
+        cy = r.top + 1
+        pygame.draw.circle(s, FOSC, (cx, cy), 22, draw_top_left=True, draw_top_right=True)
+        pygame.draw.circle(s, LLAUTO[1], (cx, cy), 20, draw_top_left=True, draw_top_right=True)
+        pygame.draw.circle(s, LLAUTO[3], (cx, cy), 18, draw_top_left=True, draw_top_right=True)
+        pygame.draw.line(s, LLAUTO[4], (cx - 14, cy - 11), (cx - 4, cy - 17))
+        loc = FOSC
+        pygame.draw.rect(s, loc, (cx - 11, cy - 9, 15, 7))                 # caldera
+        pygame.draw.rect(s, loc, (cx + 3, cy - 13, 7, 11))                 # cabina
+        pygame.draw.rect(s, LLAUTO[3], (cx + 5, cy - 11, 3, 3))            # finestra
+        pygame.draw.rect(s, loc, (cx - 9, cy - 14, 3, 5))                  # xemeneia
+        pygame.draw.rect(s, loc, (cx - 10, cy - 15, 5, 1))
+        pygame.draw.polygon(s, loc, [(cx - 11, cy - 2), (cx - 15, cy - 1), (cx - 11, cy - 5)])  # llevaneu
+        for x in (-7, -2, 6):
+            pygame.draw.circle(s, loc, (cx + x, cy - 1), 2)
         # sota: un penjoll de llautó amb un rombe
         vy = r.bottom + 7
         pygame.draw.line(s, FOSC, (cx - 46, vy + 1), (cx + 46, vy + 1), 3)
@@ -162,7 +173,7 @@ def placa(surf, rect, txt, seleccionada, apagada=False):
 # ---------------------------------------------------------------------------------------------
 # Fons del menú: el tren creuant la plana de nit
 # ---------------------------------------------------------------------------------------------
-PUJA = 96                       # quant es puja el paisatge perquè hi càpiga el menú a sota
+PUJA = 26                       # quant es puja el paisatge perquè hi càpiga el menú a sota
 
 
 class FonsMenu:

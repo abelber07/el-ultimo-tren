@@ -5,29 +5,35 @@ Estats: intro (l'estació) → titol (el menú) → joc ⇄ pausa → estacio (e
 També: controls.
 """
 import asyncio
+import math
 import sys
 
 import pygame
 
 from motor import nucli
-from motor.nucli import AMBRE, BLANC, CREMA, FPS, H, W, Pantalla
+from motor.nucli import BLANC, FPS, H, W, Pantalla
 
 pygame.init()
 PANTALLA = Pantalla()
 
 from motor import desat  # noqa: E402
 from motor.control import CONTROL  # noqa: E402
-from motor.dibuix import F_GRAN, F_NEGRETA, F_PETITA, F_TEXT, Atles, caixa, text, text_contorn  # noqa: E402
+from motor.dibuix import F_GRAN, F_NEGRETA, F_PETITA, F_TEXT, Atles, text, text_contorn  # noqa: E402
 from joc import dificultat  # noqa: E402
 from joc.estacio import Estacio  # noqa: E402
 from joc.paisatge import Paisatge  # noqa: E402
 from joc.partida import Partida  # noqa: E402
-from joc.presentacio import FonsMenu, Intro, Logo, placa  # noqa: E402
+from joc import interficie as ui  # noqa: E402
+from joc.presentacio import FonsMenu, Intro, Logo  # noqa: E402
 
 CONTROLS = [("A / D", "moverte"), ("ESPACIO", "saltar"), ("S", "agacharte (y agarrarte en los frenazos)"),
             ("S + ESPACIO", "bajar de una plataforma"), ("W", "subir escaleras"), ("J / clic", "golpe de paraguas"),
             ("K / clic der.", "abrir el paraguas (para golpes)"), ("MAYÚS", "voltereta"),
             ("E", "coger, lanzar y usar"), ("ESC", "pausa")]
+
+
+DESC_MENU = {"jugar": "Empieza una noche nueva", "intro": "La estación de la Llanura, antes de subir",
+             "controls": "Teclado, ratón y mando", "sortir": "Hasta la próxima noche"}
 
 
 class Joc:
@@ -48,6 +54,11 @@ class Joc:
         self.menu = 0
         self.sortir = False
         self.fps = False
+        self.ratoli = None              # posició del ratolí al llenç quan s'ha mogut
+        self.ratoli_abans = None
+        self.clic = None                # on s'ha fet clic aquest fotograma
+        self.rects = []                 # els rectangles de les opcions dibuixades (per al ratolí)
+        self.canvi_dif = 0
         if self.dades.get("intro_vista"):
             self.anar_titol()
         else:
@@ -77,7 +88,12 @@ class Joc:
     # --- esdeveniments -------------------------------------------------------------------------
     def gestionar(self):
         CONTROL.començar()
+        self.clic = None
         for ev in pygame.event.get():
+            if ev.type == pygame.MOUSEMOTION:
+                self.ratoli = PANTALLA.a_llenc(ev.pos)
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                self.clic = self.ratoli = PANTALLA.a_llenc(ev.pos)
             if ev.type == pygame.QUIT:
                 self.sortir = True
             elif ev.type == pygame.VIDEORESIZE:
@@ -95,16 +111,33 @@ class Joc:
 
     def opcions_menu(self):
         nom = dificultat.dades(self.dades["dificultat"])["nom"]
-        ops = [("jugar", "Subir al tren"), ("dif", f"Dificultad:  < {nom} >"), ("intro", "Ver la introducción"),
+        ops = [("jugar", "Subir al tren"), ("dif", f"Dificultad: {nom}"), ("intro", "Ver la introducción"),
                ("controls", "Controles")]
         if not nucli.WEB:
             ops.append(("sortir", "Salir"))
         return ops
 
+    def _ratoli_menu(self):
+        """El ratolí sobre una opció la tria; un clic hi accepta. Torna True si hi ha hagut clic en una opció."""
+        if self.ratoli is not None and self.ratoli != self.ratoli_abans:
+            self.ratoli_abans = self.ratoli
+            for i, r in enumerate(self.rects):
+                if r.inflate(0, 6).collidepoint(self.ratoli):
+                    self.menu = i
+        if self.clic is not None:
+            return any(r.inflate(0, 6).collidepoint(self.clic) for r in self.rects)
+        return False
+
     def actualitzar(self):
         self.t += 1
         c = CONTROL
         accepta = c.premut("acceptar") or c.premut("usar")
+        if self.estat in ("titol", "pausa"):
+            accepta = self._ratoli_menu() or accepta
+        elif self.estat == "estacio" and self.estacio:
+            accepta = self.estacio.ratoli(self.ratoli, self.clic) or accepta
+        elif self.estat in ("controls", "final") and self.clic is not None:
+            accepta = True
         if self.estat == "intro":
             self.intro.actualitzar()
             if self.t > 20 and (accepta or c.premut("pausa") or c.premut("cop")):
@@ -123,6 +156,7 @@ class Joc:
                 self.menu = (self.menu + 1) % len(ops)
             clau = ops[self.menu][0]
             if clau == "dif" and (c.premut("esq") or c.premut("dre") or accepta):
+                self.canvi_dif = 12
                 pas = -1 if c.premut("esq") else 1
                 self.dades["dificultat"] = dificultat.seguent(self.dades["dificultat"], pas)
                 self.desar()
@@ -247,94 +281,117 @@ class Joc:
         v.fill((6, 6, 14, alfa))
         s.blit(v, (0, 0))
 
+    def _text_record(self):
+        m = self.dades.get("millor")
+        if not m:
+            return None
+        if m.get("fi"):
+            return "Has llegado al final de esta versión"
+        if m.get("tram", 1) > 1 and m.get("vago", 1) <= 1:
+            return f"Mejor viaje: llegaste al tramo {m['tram']}"
+        return f"Mejor viaje: tramo {m.get('tram', 1)}, vagón {m['vago']}"
+
     def dibuixar_titol(self, s):
         self.fons.dibuixar(s)
         baixa = max(0, 30 - self.t) * 2                 # el logotip baixa una mica en entrar
-        self.logo.dibuixar(s, W // 2, 6 - baixa, self.t)
+        self.logo.dibuixar(s, W // 2, 2 - baixa, self.t)
         ops = self.opcions_menu()
-        y0 = 266
-        for i, (clau, txt) in enumerate(ops):
-            sel = i == self.menu
-            ample = 196 if sel else 180
-            r = pygame.Rect(0, 0, ample, 15)
-            r.center = (W // 2, y0 + i * 18)
-            placa(s, r, txt, sel)
+        pan = pygame.Rect(0, 0, 252, len(ops) * ui.PAS + 42)
+        pan.midtop = (W // 2, 122)
+        ui.panell(s, pan)
+        self.rects = ui.llista(s, W // 2, pan.top + 11 + ui.PAS // 2, [txt for _, txt in ops], self.menu, self.t)
         clau = ops[self.menu][0]
+        if clau == "dif":                               # fletxes per canviar la dificultat
+            r = self.rects[self.menu]
+            k = self.canvi_dif
+            self.canvi_dif = max(0, k - 1)
+            for costat in (-1, 1):
+                x = r.centerx + 6 + costat * (r.width // 2 - 22 + (2 if k else 0))
+                pygame.draw.polygon(s, ui.LLAUTO[3], [(x + costat * 4, r.centery), (x - costat, r.centery - 4),
+                                                      (x - costat, r.centery + 4)])
         if clau == "dif":
-            d = dificultat.dades(self.dades["dificultat"])
-            text(s, d["desc"], F_PETITA, (210, 196, 170), (W // 2, y0 - 14))
-        m = self.dades.get("millor")
-        if m:
-            if m.get("fi"):
-                rec = "Has llegado al final de esta versión"
-            elif m.get("tram", 1) > 1 and m.get("vago", 1) <= 1:
-                rec = f"Mejor viaje: llegaste al tramo {m['tram']}"
-            else:
-                rec = f"Mejor viaje: tramo {m.get('tram', 1)}, vagón {m['vago']}"
-            text(s, rec, F_PETITA, (170, 156, 130), (10, H - 8), ancora="bottomleft")
-        text(s, f"v{nucli.VERSIO} · un juego de Abel", F_PETITA, (150, 140, 130), (W - 10, H - 8),
-             ancora="bottomright")
+            desc = dificultat.dades(self.dades["dificultat"])["desc"]
+        else:
+            desc = DESC_MENU[clau]
+        ui.separador(s, W // 2, pan.bottom - 25, pan.width - 40)
+        text(s, desc, F_PETITA, ui.SUAU, (W // 2, pan.bottom - 13))
+        rec = self._text_record()
+        if rec:
+            text(s, rec, F_PETITA, ui.SUAU, (10, H - 8), ancora="bottomleft")
+        text(s, f"v{nucli.VERSIO} · un juego de Abel", F_PETITA, ui.SUAU, (W - 10, H - 8), ancora="bottomright")
+        ajuda = "W/S elegir · A/D cambiar · ENTER aceptar" if clau == "dif" else "W/S elegir · ENTER aceptar"
+        ui.ajuda(s, ajuda, (W // 2, H - 10))
         if self.t < 40:
             v = pygame.Surface((W, H))
             v.set_alpha(255 - self.t * 255 // 40)
             s.blit(v, (0, 0))
 
     def dibuixar_controls(self, s):
-        self._vel(s, 120)
-        r = pygame.Rect(W // 2 - 200, 50, 400, 260)
-        caixa(s, r)
-        text(s, "CONTROLES", F_GRAN, AMBRE, (W // 2, 76))
+        self._vel(s, 110)
+        r = pygame.Rect(0, 0, 420, 262)
+        r.center = (W // 2, H // 2 - 4)
+        ui.panell(s, r, alfa=225)
+        ui.titol_panell(s, "CONTROLES", W // 2, r.top + 18)
         for i, (k, que) in enumerate(CONTROLS):
-            y = 108 + i * 18
-            text(s, k, F_NEGRETA, AMBRE, (W // 2 - 70, y), ancora="midright")
-            text(s, que, F_TEXT, CREMA, (W // 2 - 56, y), ancora="midleft")
-        text(s, "Con mando: A saltar · Y golpe · LB paraguas · B voltereta · X usar", F_PETITA, (190, 180, 160),
-             (W // 2, 296))
-        if (self.t // 30) % 2 == 0:
-            text_contorn(s, "ENTER para volver", F_PETITA, BLANC, (W // 2, 324))
+            y = r.top + 44 + i * 17
+            text(s, k, F_NEGRETA, ui.LLAUTO[3], (r.left + 132, y), ancora="midright")
+            text(s, que, F_TEXT, ui.TEXT, (r.left + 148, y), ancora="midleft")
+        ui.separador(s, W // 2, r.bottom - 38, r.width - 60)
+        text(s, "Mando: A saltar · Y golpe · LB paraguas · B voltereta · X usar", F_PETITA, ui.SUAU,
+             (W // 2, r.bottom - 26))
+        ui.ajuda(s, "ENTER o ESC para volver", (W // 2, r.bottom - 12))
 
     def dibuixar_pausa(self, s):
         self._vel(s, 150)
-        caixa(s, pygame.Rect(W // 2 - 250, 40, 500, 280))
-        text(s, "PAUSA", F_GRAN, AMBRE, (W // 2, 66))
-        for i, op in enumerate(self.opcions_pausa()):
-            sel = i == self.menu
-            text(s, ("> " if sel else "") + op, F_NEGRETA if sel else F_TEXT, AMBRE if sel else CREMA,
-                 (W // 2 - 220, 104 + i * 20), ancora="midleft")
-        dif = dificultat.dades(self.partida.nom_dificultat)["nom"]
-        text(s, f"Dificultad: {dif}", F_PETITA, (170, 156, 130), (W // 2 - 220, 300), ancora="midleft")
+        r = pygame.Rect(0, 0, 580, 250)
+        r.center = (W // 2, H // 2)
+        ui.panell(s, r, alfa=230)
+        ui.titol_panell(s, "PAUSA", W // 2, r.top + 18)
+        ops = self.opcions_pausa()
+        esq = pygame.Rect(r.left + 16, r.top + 40, 184, r.height - 56)
+        self.rects = ui.llista(s, esq.centerx + 6, esq.top + 22, ops, self.menu, self.t, ample=172)
+        pygame.draw.line(s, (70, 54, 30), (esq.right + 12, r.top + 40), (esq.right + 12, r.bottom - 16))
         for i, (k, que) in enumerate(CONTROLS):
-            y = 104 + i * 18
-            text(s, k, F_PETITA, AMBRE, (W // 2 - 10, y), ancora="midleft")
-            text(s, que, F_PETITA, CREMA, (W // 2 + 80, y), ancora="midleft")
+            y = r.top + 48 + i * 17
+            text(s, k, F_PETITA, ui.LLAUTO[3], (esq.right + 100, y), ancora="midright")
+            text(s, que, F_PETITA, ui.TEXT, (esq.right + 110, y), ancora="midleft")
+        dif = dificultat.dades(self.partida.nom_dificultat)["nom"]
+        text(s, f"Dificultad: {dif}", F_PETITA, ui.SUAU, (esq.centerx + 6, r.bottom - 16))
 
     def dibuixar_final(self, s):
         p = self.partida
-        self._vel(s, min(190, self.t * 4))
+        self._vel(s, min(170, self.t * 4))
         if self.t < 30:
             return
         j = p.jugador
-        titols = {"mort": ("Te has quedado en el tren", (230, 120, 110)),
-                  "alba": ("Ha salido el sol", (255, 190, 120)),
-                  "tram": ("Fin del segundo tramo", AMBRE)}
+        titols = {"mort": ("Te has quedado en el tren", (236, 130, 118)),
+                  "alba": ("Ha salido el sol", (255, 196, 128)),
+                  "tram": ("Fin del segundo tramo", ui.LLAUTO[3])}
         tit, col = titols[p.acabada]
-        text_contorn(s, tit, F_GRAN, col, (W // 2, 96))
+        r = pygame.Rect(0, 0, 400, 236)
+        r.center = (W // 2, H // 2)
+        ui.panell(s, r, alfa=225)
+        text_contorn(s, tit, F_GRAN, col, (W // 2, r.top + 28), vora=ui.FOSC)
         if p.acabada == "tram":
-            text(s, f"Has cruzado la {p.ruta['nom']}. Hasta aquí llega, de momento, el tren.", F_TEXT, CREMA,
-                 (W // 2, 128))
+            sub = f"Has cruzado la {p.ruta['nom']}. De momento, el tren llega hasta aquí."
         elif p.acabada == "mort":
-            text(s, "Ahora eres un pasajero más.", F_TEXT, CREMA, (W // 2, 128))
+            sub = "Ahora eres un pasajero más."
         else:
-            text(s, "El tren no espera a nadie.", F_TEXT, CREMA, (W // 2, 128))
+            sub = "El tren no espera a nadie."
+        text(s, sub, F_PETITA, ui.TEXT, (W // 2, r.top + 52))
+        ui.separador(s, W // 2, r.top + 66, r.width - 80)
         files = [("Hora", p.esdeveniments.hora()),
                  ("Tramo", f"{p.tram} · vagón {p.vago_actual + 1} de {len(p.tren.vagons)}"),
                  ("Billetes", str(j.bitllets)), ("Pasajeros vencidos", str(p.baixes)),
                  ("Dificultad", dificultat.dades(p.nom_dificultat)["nom"])]
         for i, (k, v) in enumerate(files):
-            text(s, k, F_TEXT, (190, 176, 150), (W // 2 - 10, 166 + i * 20), ancora="midright")
-            text(s, v, F_NEGRETA, BLANC, (W // 2 + 10, 166 + i * 20), ancora="midleft")
-        if self.t > 60 and (self.t // 30) % 2 == 0:
-            text_contorn(s, "Pulsa ENTER", F_NEGRETA, BLANC, (W // 2, 286))
+            y = r.top + 86 + i * 20
+            text(s, k, F_TEXT, ui.SUAU, (W // 2 - 8, y), ancora="midright")
+            text(s, v, F_NEGRETA, (255, 244, 220), (W // 2 + 8, y), ancora="midleft")
+        if self.t > 60:
+            ui.separador(s, W // 2, r.bottom - 28, r.width - 80)
+            a = 150 + int(100 * abs(math.sin(self.t / 30)))
+            text(s, "Pulsa ENTER para volver al menú", F_PETITA, (a, a, a), (W // 2, r.bottom - 14))
 
 
 async def main():

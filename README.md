@@ -35,7 +35,12 @@ También funciona con mando (A saltar, B voltereta, X usar, Y o RB golpe, LB par
 
 ## Estado
 
-**Versión 0.3: dos tramos, el Revisor y la primera estación.**
+**Versión 0.4: viajera nueva, menús nuevos y sin atajo por el techo.**
+
+- Novedades de la 0.4: la viajera más grande y con más detalle (respira, arranca, derrapa al girar, aterriza, la
+  bufanda cuelga o vuela según se mueva) y se mueve mejor (salto más suave arriba, pasos con polvo); menú, pausa,
+  controles, estación y pantalla final con el mismo estilo (panel azul de noche, opción elegida con un billete) y se
+  pueden usar con el ratón; y con la puerta de un vagón cerrada tampoco se puede pasar por el techo (hay una reja).
 
 - Novedades de la 0.3: el Revisor, jefe del primer tramo (en su propio vagón, con segunda fase a oscuras); el
   Empalme del Cuervo, donde puedes descansar en la fonda y elegir vía (Montañas, Río con niebla o Rápida); y un

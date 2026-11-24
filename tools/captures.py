@@ -56,7 +56,7 @@ def teleport(p, vago, dx=80, y=TERRA_Y):
     return v
 
 
-escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "jefe", "estacio", "final"]
+escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "jefe", "estacio", "pausa", "final"]
 if "intro" in escenes:
     joc.veure_intro()
     fet = 0
@@ -216,6 +216,24 @@ if "estacio" in escenes:
         pas(60)
         pas(80, tecles=["dre"])
         guardar(f"23_tram2_{via}")
+if "barrera" in escenes:
+    p = nova(11)
+    v = p.tren.vagons[1]
+    teleport(p, 1, dx=v.x1 - v.x0 - 120, y=SOSTRE_Y)
+    p.jugador.invul = 10 ** 6
+    pas(70, tecles=["dre"])
+    p.rotul = None
+    pas(200)
+    pas(10, tecles=["dre"])
+    guardar("06_barrera")
+if "pausa" in escenes:
+    nova()
+    pas(120, tecles=["dre"])
+    joc.estat = "pausa"
+    joc.menu = 0
+    pas(1, prem=["avall"])
+    pas(20)
+    guardar("02_pausa")
 if "final" in escenes:
     p = nova()
     p.jugador.vida = 0
