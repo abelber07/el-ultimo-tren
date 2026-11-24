@@ -48,6 +48,13 @@ MAT = {
     "drap_f": [(16, 16, 10), (40, 42, 26), (58, 60, 38), (80, 82, 52), (108, 110, 74)],
     "sac": [(54, 42, 26), (128, 104, 66), (170, 142, 94), (204, 180, 128), (236, 216, 170)],
     "ull": [(120, 90, 10), (220, 180, 40), (255, 222, 80), (255, 240, 150), (255, 252, 220)],
+    # el Revisor
+    "uniforme": [(8, 10, 24), (24, 28, 54), (36, 42, 76), (54, 62, 102), (82, 92, 136)],
+    "uniforme_f": [(6, 8, 18), (18, 20, 40), (28, 32, 58), (42, 48, 80), (64, 72, 108)],
+    "guant": [(90, 88, 84), (178, 174, 166), (214, 210, 202), (236, 234, 228), (252, 252, 248)],
+    "llauto": [(64, 42, 12), (146, 104, 34), (200, 154, 56), (234, 198, 98), (255, 240, 178)],
+    "farol": [(120, 60, 8), (226, 140, 34), (255, 196, 80), (255, 228, 150), (255, 250, 220)],
+    "ombra": [(2, 2, 4), (8, 8, 12), (14, 14, 20), (22, 22, 30), (34, 34, 44)],
 }
 comprovar_paleta(MAT)
 
@@ -338,6 +345,138 @@ def fotogrames_sense_cara():
 
 
 # ---------------------------------------------------------------------------------------------
+# El Revisor (jefe del primer tram): molt alt, abric llarg, gorra de plat, sense cara, farol i perforadora
+# ---------------------------------------------------------------------------------------------
+RW, RH = 96, 104
+R_BASE = {"c_d": 0.0, "f_d": 0.0, "c_e": 0.0, "f_e": 0.0, "b_d": 0.35, "a_d": 0.2, "b_e": -0.6, "a_e": -0.1,
+          "incl": 0.0, "ajup": 0.0, "ap": None, "ulls": 1.0, "agenoll": False, "farol": True}
+
+
+def perforadora(f, ma, a):
+    """La perforadora de bitllets gegant: el mànec a la mà i el cap de llautó en la direcció a."""
+    ux, uy = math.sin(a), math.cos(a)
+    nx, ny = -uy, ux
+    cap = (ma[0] + ux * 9, ma[1] + uy * 9)
+    f.membre("uniforme_f", [ma, cap], 1.6, mode="pla")
+    pts = [(cap[0] + nx * 5 - ux * 2, cap[1] + ny * 5 - uy * 2), (cap[0] + nx * 5 + ux * 7, cap[1] + ny * 5 + uy * 7),
+           (cap[0] - nx * 4 + ux * 8, cap[1] - ny * 4 + uy * 8), (cap[0] - nx * 5 - ux * 1, cap[1] - ny * 5 - uy * 1)]
+    f.poli("llauto", pts)
+    f.marca_linia((cap[0] + ux * 3 + nx * 4, cap[1] + uy * 3 + ny * 4),
+                  (cap[0] + ux * 3 - nx * 4, cap[1] + uy * 3 - ny * 4), -1)
+    f.cercle("ombra", cap[0] + ux * 5, cap[1] + uy * 5, 1.2, mode="pla")
+    return (cap[0] + ux * 8, cap[1] + uy * 8)
+
+
+def farol(f, ma):
+    x, y = ma[0], ma[1] + 2
+    f.membre("llauto", [(x, y - 2), (x, y + 1)], 0.6, mode="pla")
+    f.poli("llauto", [(x - 4, y + 1), (x + 4, y + 1), (x + 3, y + 3), (x - 3, y + 3)])
+    f.rect("farol", x - 3, y + 3, x + 3, y + 10, mode="brilla")
+    f.rect("llauto", x - 4, y + 10, x + 4, y + 12)
+    f.membre("llauto", [(x, y + 3), (x, y + 10)], 0.4, mode="pla")
+
+
+def braç_rev(f, mat, esp, a1, a2):
+    c = pt(esp, a1, 13)
+    m = pt(c, a2, 12)
+    f.membre(mat, [esp, c, m], [3.2, 2.8, 2.4])
+    f.membre("llauto", [pt(c, a2, 9.5), pt(c, a2, 10.5)], 2.7, mode="pla")              # el puny daurat
+    f.el·lipse("guant", m[0] - 2.4, m[1] - 2.2, m[0] + 2.4, m[1] + 2.6)
+    return m
+
+
+def revisor(**pose):
+    p = dict(R_BASE, **pose)
+    f = Figura(RW, RH, MAT, brillants=("llauto", "farol", "ull"))
+    x0 = RW // 2
+    alt_cama = 15.5
+    maluc = (x0, RH - 1 - 2 * alt_cama + 1 + p["ajup"])
+    inc = p["incl"]
+    coll = pt(maluc, math.pi + inc, 30 - p["ajup"] * 0.2)
+    esp = (coll[0], coll[1] + 3)
+    cap = (coll[0] + 1.5 + inc * 4, coll[1] - 7.5)
+    # braç del farol (darrere)
+    m_e = braç_rev(f, "uniforme_f", (esp[0] - 2, esp[1]), p["b_e"], p["a_e"])
+    if p["farol"]:
+        farol(f, m_e)
+    # cames
+    if p["agenoll"]:
+        cames = (("uniforme_f", -1.5, 1.45, 1.5), ("uniforme", 1.5, 0.2, 2.0))
+    else:
+        cames = (("uniforme_f", -1.5, p["c_e"], p["f_e"]), ("uniforme", 1.5, p["c_d"], p["f_d"]))
+    for mat, dx, a, fl in cames:
+        m0 = (maluc[0] + dx, maluc[1])
+        g = pt(m0, a, alt_cama)
+        q = pt(g, a - fl, alt_cama)
+        f.membre(mat, [m0, g, q], [3.4, 2.8, 2.4])
+        f.el·lipse("ombra", q[0] - 3, q[1] - 2.8, q[0] + 5, q[1] + 0.6)
+    # l'abric llarg: del coll fins a mitja canyella
+    baix = min(RH - 9, maluc[1] + 22 - p["ajup"] * 0.5)
+    abric = [(coll[0] - 6, coll[1] + 1), (coll[0] + 5.5, coll[1] + 1), (maluc[0] + 6.5, maluc[1] - 2),
+             (maluc[0] + 9 + inc * 6, baix), (maluc[0] - 8 + inc * 6, baix + 0.5), (maluc[0] - 7, maluc[1] - 2)]
+    f.poli("uniforme", abric)
+    f.marca_linia((coll[0] + 2, coll[1] + 2), (maluc[0] + 2.5 + inc * 3, baix - 1), -1)
+    for k in range(5):                                                                      # botons de llautó
+        t = 0.12 + k * 0.17
+        bx = coll[0] + 3.6 + (maluc[0] - coll[0]) * t
+        by = coll[1] + 3 + (maluc[1] - coll[1]) * t
+        f.px(bx, by, MAT["llauto"][3])
+    f.rect("ombra", maluc[0] - 6.5, maluc[1] - 4, maluc[0] + 6.5, maluc[1] - 2.5, mode="pla")  # cinturó
+    f.px(maluc[0] + 3, maluc[1] - 3.2, MAT["llauto"][3])
+    f.poli("uniforme_f", [(coll[0] - 4, coll[1] - 0.5), (coll[0] + 5, coll[1] - 0.5), (coll[0] + 4, coll[1] + 3),
+                          (coll[0] - 3, coll[1] + 3)])                                       # coll alt
+    # el cap: només ombra sota la visera i dos punts de llum
+    f.el·lipse("ombra", cap[0] - 4.2, cap[1] - 5, cap[0] + 4.6, cap[1] + 5.5)
+    if p["ulls"] > 0:
+        col = MAT["ull"][4 if p["ulls"] > 1 else 2]
+        f.px(cap[0] + 1.8, cap[1] - 0.2, col)
+        f.px(cap[0] + 4.0, cap[1] - 0.2, col)
+    # gorra de plat
+    f.poli("uniforme", [(cap[0] - 6, cap[1] - 5), (cap[0] - 4.5, cap[1] - 9.5), (cap[0] + 5.5, cap[1] - 10),
+                        (cap[0] + 7, cap[1] - 5)])
+    f.rect("ombra", cap[0] - 5.5, cap[1] - 5.5, cap[0] + 6.5, cap[1] - 4, mode="pla")
+    f.poli("ombra", [(cap[0] + 3, cap[1] - 4.5), (cap[0] + 10, cap[1] - 4), (cap[0] + 9, cap[1] - 2.8),
+                     (cap[0] + 3, cap[1] - 3.4)])                                            # visera
+    f.el·lipse("llauto", cap[0] + 1, cap[1] - 8.6, cap[0] + 4, cap[1] - 6)
+    # braç de la perforadora (davant)
+    m_d = braç_rev(f, "uniforme", (esp[0] + 1.5, esp[1] + 0.5), p["b_d"], p["a_d"])
+    if p["ap"] is not None:
+        perforadora(f, m_d, p["ap"])
+    return f
+
+
+def fotogrames_revisor():
+    fs = {}
+    fs["rv_quiet0"] = revisor(ap=1.2)
+    fs["rv_quiet1"] = revisor(ap=1.25, ajup=0.8, b_d=0.4, a_d=0.25)
+    for i in range(4):
+        a, fd, b, fe = cicle_cames(i / 4, 0.42)
+        fs[f"rv_camina{i}"] = revisor(c_d=a, f_d=fd * 0.7, c_e=b, f_e=fe * 0.7, incl=0.12, b_d=0.3 - b * 0.4,
+                                      a_d=0.15 - b * 0.4, b_e=-0.6 - a * 0.3, ap=1.2, ajup=abs(math.sin(i * math.pi / 2)) * -0.8)
+    # alça la perforadora per sobre del cap
+    fs["rv_alça"] = revisor(c_d=0.25, f_d=0.2, c_e=-0.25, f_e=0.2, incl=-0.15, b_d=3.0, a_d=3.2, ap=3.4, ulls=2)
+    # cop: s'inclina i clava la perforadora a terra davant seu
+    fs["rv_cop"] = revisor(c_d=0.55, f_d=0.45, c_e=-0.4, f_e=0.3, incl=0.75, b_d=1.0, a_d=0.25, ap=0.2, ajup=4,
+                           ulls=2, b_e=-0.6, a_e=-0.4)
+    # encallat: la perforadora clavada, estira per treure-la
+    for i in range(2):
+        fs[f"rv_encallat{i}"] = revisor(c_d=0.55, f_d=0.45, c_e=-0.45, f_e=0.3, incl=0.7 - 0.08 * i, b_d=0.95 - 0.06 * i,
+                                        a_d=0.3, ap=0.25, ajup=4, ulls=1, b_e=-0.5, a_e=-0.3)
+    # «Billete, por favor»: estira el braç per agafar-te
+    for i in range(2):
+        a, fd, b, fe = cicle_cames(i / 2, 0.6)
+        fs[f"rv_estira{i}"] = revisor(c_d=a, f_d=fd * 0.6, c_e=b, f_e=fe * 0.6, incl=0.35, b_d=1.6, a_d=1.55,
+                                      ap=None, b_e=-0.6, a_e=-0.5, ulls=2)
+    for i in range(2):
+        fs[f"rv_atordit{i}"] = revisor(c_d=0.1, c_e=-0.15, incl=0.45 + 0.05 * i, b_d=0.05, a_d=-0.15, ap=0.1,
+                                       ajup=3 + i, b_e=-0.1, a_e=0.0, ulls=0 if i else 1)
+    fs["rv_mal"] = revisor(c_d=-0.3, c_e=0.3, incl=-0.35, b_d=-0.8, a_d=-1.1, ap=-0.5, b_e=-1.0, a_e=-1.2, ulls=2)
+    fs["rv_vençut"] = revisor(agenoll=True, incl=0.55, ajup=12, b_d=0.2, a_d=0.1, ap=None, b_e=0.1, a_e=0.0,
+                              farol=False, ulls=0)
+    return fs
+
+
+# ---------------------------------------------------------------------------------------------
 # La maleta (de decorat, i la viva)
 # ---------------------------------------------------------------------------------------------
 MW, MH = 30, 26
@@ -435,7 +574,7 @@ def fotogrames_polisso():
 def main():
     imatges, ancores = {}, {}
     grups = [(fotogrames_viatgera(), VW), (fotogrames_sense_cara(), SW), (fotogrames_maleta(), MW),
-             (fotogrames_polisso(), PW)]
+             (fotogrames_polisso(), PW), (fotogrames_revisor(), RW)]
     for fs, w in grups:
         for nom, fig in fs.items():
             s = fig.superficie(fins_a_baix=True)

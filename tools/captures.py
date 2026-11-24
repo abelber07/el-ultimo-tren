@@ -2,7 +2,7 @@
 
     python tools/captures.py carpeta_sortida [escena ...]
 
-Escenes: intro, titol, inici, segona, sostre, tunel, combat, frenada, final.
+Escenes: intro, titol, inici, segona, sostre, tunel, combat, frenada, jefe, final.
 """
 import os
 import sys
@@ -56,7 +56,7 @@ def teleport(p, vago, dx=80, y=TERRA_Y):
     return v
 
 
-escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "final"]
+escenes = sys.argv[2:] or ["intro", "titol", "inici", "segona", "sostre", "tunel", "combat", "frenada", "jefe", "final"]
 if "intro" in escenes:
     joc.veure_intro()
     fet = 0
@@ -159,6 +159,44 @@ if "frenada" in escenes:
     pas(1, tecles=["avall"])
     pas(125, tecles=["avall"])
     guardar("14_frenada_agafada")
+if "jefe" in escenes:
+    p = nova(3)
+    idx = len(p.tren.vagons) - 1
+    teleport(p, idx, dx=160)
+    j = p.jugador
+    j.invul = 9999
+    rv = next(e for e in p.enemics if getattr(e, "es_jefe", False))
+    pas(30)
+    guardar("16_jefe_presenta")
+    pas(100)
+    j.x = rv.x - 50
+    while rv.estat != "alça":
+        pas(1)
+    pas(25)
+    guardar("17_jefe_alca")
+    while rv.estat != "cop":
+        pas(1)
+    pas(8)
+    guardar("18_jefe_cop")
+    pas(20)
+    guardar("18_jefe_ona")
+    rv.canviar("camina")
+    rv.rebre(p, rv.vida - rv.vida_inicial // 2, j.x)
+    pas(80)
+    guardar("19_jefe_fosc")
+    rv.canviar("camina")
+    j.x = rv.x - 300
+    rv.espera = 0
+    for _ in range(600):
+        if rv.estat == "estira" and rv.t > 30:
+            break
+        pas(1)
+    guardar("20_jefe_estira")
+    rv.vida = 1
+    rv.canviar("encallat")
+    rv.rebre(p, 1, j.x)
+    pas(40)
+    guardar("21_jefe_vencut")
 if "final" in escenes:
     p = nova()
     p.jugador.vida = 0

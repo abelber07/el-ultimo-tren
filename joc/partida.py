@@ -5,6 +5,7 @@ import random
 import pygame
 
 from joc import enemics, objectes
+from joc import jefe
 from joc.dificultat import dades as dades_dificultat
 from joc.esdeveniments import Esdeveniments
 from joc.jugador import Jugador
@@ -14,6 +15,8 @@ from joc.tren import DALT, Tren, pintar_vago, rodes
 from motor import dibuix
 from motor.dibuix import F_NEGRETA, F_PETITA, F_TEXT, TextFlotant, Zeta, text, text_contorn
 from motor.nucli import AMBRE, BLANC, CREMA, H, W
+
+JEFES = {"revisor": jefe.Revisor}      # importar joc.jefe el registra a enemics.TIPUS
 
 COLORS_BITLLET = [(240, 230, 200), (220, 60, 60), (255, 250, 230)]
 
@@ -61,6 +64,9 @@ class Partida:
         for v in self.tren.vagons:
             factor = self.dif["enemics"]
             for tipus, x, y, op in v.spawns:
+                if tipus == "revisor":
+                    self._crear_enemic(tipus, x, y, v.idx, op)
+                    continue
                 if factor < 1 and self.rng.random() > factor:
                     continue
                 self._crear_enemic(tipus, x, y, v.idx, op)
@@ -90,6 +96,10 @@ class Partida:
         self.foscor = pygame.Surface((W, H), pygame.SRCALPHA)
         self.capa_fletxes = pygame.Surface((W, H), pygame.SRCALPHA)
         self.ratlles = []              # [x, y, llarg, edat] ratlles d'aire de les frenades
+        self.perills = []              # ones de la perforadora
+        self.jefe = None               # el jefe quan ja s'ha presentat
+        self.jefe_fosc = False         # segona fase: llums apagats al seu vagó
+        self.cartell_jefe = 0
         self.prompt = None
         for v in self.tren.vagons:
             v.surf = pintar_vago(v, self.atr)
@@ -99,7 +109,10 @@ class Partida:
 
     def _crear_enemic(self, tipus, x, y, vago, op):
         e = enemics.TIPUS[tipus](x, y, vago, op)
-        e.vida += self.dif["vida_enemics"]
+        if getattr(e, "es_jefe", False):
+            e.vida = round(e.vida_max * self.dif["vida_jefe"])
+        else:
+            e.vida += self.dif["vida_enemics"]
         e.agressio = self.dif["agressio"]
         self.enemics.append(e)
         return e
@@ -144,6 +157,32 @@ class Partida:
             self.afegir_objecte("pa", e.x, e.y - 10, vy=-3)
         self.tremolor = max(self.tremolor, 6)
         self.soroll(e.x, 150)
+
+    # --- el jefe ----------------------------------------------------------------------------
+    def presentar_jefe(self, e):
+        self.jefe = e
+        self.cartell_jefe = 160
+        self.rotul = None
+        self.tremolor = 6
+
+    def fase_jefe(self, e):
+        self.jefe_fosc = True
+        self.tremolor = 16
+        self.atur = 10
+        self.text(e.x, e.y - e.alt - 14, "¡Se apagan las luces!", (255, 200, 150))
+
+    def jefe_vençut(self, e):
+        self.baixes += 1
+        self.jefe_fosc = False
+        self.perills.clear()
+        self.atur = 24
+        self.tremolor = 22
+        dibuix.fum(self.efectes, e.x, e.y - e.alt / 2, 24)
+        self.esclat(e.x, e.y - e.alt / 2, 24, [(255, 240, 180), (255, 200, 90), (220, 220, 240)], vel=(1, 4))
+        self.esclat_bitllets(e.x, e.y - 40, 8)
+        self.afegir_objecte("pa", e.x - 20, e.y - 20, vy=-4)
+        self.afegir_objecte("pa", e.x + 20, e.y - 20, vy=-4)
+        self.missatge_curt("El Revisor ha caído. La puerta está abierta.", 180)
 
     def parada(self, e, perfecta):
         if perfecta:
@@ -239,6 +278,15 @@ class Partida:
         for pr in self.projectils:
             pr.actualitzar(self)
         self.projectils = [p for p in self.projectils if not p.fora]
+        rj = j.rect()
+        for o in self.perills:
+            o.actualitzar(self)
+            if not o.fora and o.rect().colliderect(rj) and j.ferir(self, 1, o.x - o.dir * 20):
+                o.fora = True
+                self.tremolor = 8
+        self.perills = [o for o in self.perills if not o.fora]
+        if self.cartell_jefe:
+            self.cartell_jefe -= 1
         self.efectes = [e for e in self.efectes if not e.actualitzar()]
         self.enemics = [e for e in self.enemics if not (e.mort and getattr(e, "estat", "") == "fora")]
         self._actualitzar_portes()
@@ -298,6 +346,10 @@ class Partida:
                         j.vx = -j.dir * 1.5
                 elif j.ferir(self, 1, e.x):
                     self.tremolor = 8
+            ag = e.rect_agafa() if hasattr(e, "rect_agafa") else None
+            if ag is not None and ag.colliderect(rj) and not j.invul and j.estat not in ("volta", "mort"):
+                e.agafar(self, j)
+                self.tremolor = 10
             dc = e.dany_contacte()
             if dc and re.colliderect(rj):
                 if j.parant_cap(e.x):
@@ -438,7 +490,8 @@ class Partida:
             nom_llum = "llum_porta_g" if v.oberta else "llum_porta_v"
             self.atr.dibuixar(surf, nom_llum, px - 13, TERRA_Y - PORTA_H - 4)
             # llum dels llums de paret
-            if not es.tunel_a(v.x0 + v.ample / 2):
+            fosc = self.jefe_fosc and v.tipus == "revisor"
+            if not fosc and not es.tunel_a(v.x0 + v.ample / 2):
                 for lx, ly, nom in v.llums:
                     g = self.glow if nom == "llum_penjant" else self.glow_petit
                     yy = ly if nom == "llum" else ly + 10
@@ -448,8 +501,10 @@ class Partida:
             if -40 < o.x - cam < W + 40:
                 o.dibuixar(surf, cam, self.atr)
         for e in self.enemics:
-            if not e.mort and -60 < e.x - cam < W + 60:
+            if (not e.mort or getattr(e, "es_jefe", False)) and -80 < e.x - cam < W + 80:
                 e.dibuixar(surf, cam, self.atles)
+        for o in self.perills:
+            o.dibuixar(surf, cam)
         j = self.jugador
         j.dibuixar(surf, cam, self.atles)
         if j.porta:
@@ -459,8 +514,13 @@ class Partida:
         for ef in self.efectes:
             ef.dibuixar(surf, cam)
         self._dibuixar_frenada(surf, cam)
+        forats = []
+        if self.jefe_fosc and self.jefe:
+            v = self.tren.vagons[self.jefe.vago]
+            trams.append((v.x0 - cam, v.x1 - cam, DALT, VIA_Y - 8))
+            forats.append(self.jefe.pos_farol())
         if trams:
-            self._foscor(surf, trams, cam)
+            self._foscor(surf, trams, cam, forats)
         if hud:
             self.dibuixar_hud(surf)
 
@@ -473,14 +533,18 @@ class Partida:
         pygame.draw.rect(surf, (20, 18, 24), (x - 6, 308, 42, 6))
         pygame.draw.rect(surf, (60, 58, 70), (x + 8, 306, 14, 10))
 
-    def _foscor(self, surf, trams, cam):
+    def _foscor(self, surf, trams, cam, forats=()):
         f = self.foscor
         f.fill((0, 0, 0, 0))
-        for a, b in trams:
-            f.fill((6, 6, 14, 215), (max(0, int(a)), 0, max(0, int(min(W, b) - max(0, a))), H))
+        for tram in trams:
+            a, b = tram[0], tram[1]
+            y0, y1 = tram[2:] if len(tram) > 2 else (0, H)
+            f.fill((6, 6, 14, 215), (max(0, int(a)), y0, max(0, int(min(W, b) - max(0, a))), y1 - y0))
         j = self.jugador
         r = self.forat.get_width() // 2
         f.blit(self.forat, (round(j.x - cam) - r, round(j.y - 16) - r), special_flags=pygame.BLEND_RGBA_MIN)
+        for fx, fy in forats:
+            f.blit(self.forat, (round(fx - cam) - r, round(fy) - r), special_flags=pygame.BLEND_RGBA_MIN)
         surf.blit(f, (0, 0))
 
     def _avis_frenada(self, surf, y):
@@ -516,8 +580,34 @@ class Partida:
         pygame.draw.rect(surf, vora, (r.left + 6, r.bottom - 4, int((r.width - 12) * k), 2))
         return r.bottom + 6
 
+    def _hud_jefe(self, surf):
+        e = self.jefe
+        if self.cartell_jefe:
+            k = self.cartell_jefe
+            a = min(255, k * 8, (160 - k) * 12)
+            banda = pygame.Surface((W, 64), pygame.SRCALPHA)
+            banda.fill((0, 0, 0, int(a * 0.6)))
+            surf.blit(banda, (0, 120))
+            im = dibuix.render(e.nom, dibuix.F_GRAN, (255, 214, 140))
+            im.set_alpha(a)
+            surf.blit(im, im.get_rect(center=(W // 2, 144)))
+            sub = dibuix.render("Guardián del primer tramo", F_TEXT, CREMA)
+            sub.set_alpha(a)
+            surf.blit(sub, sub.get_rect(center=(W // 2, 168)))
+        if e.actiu():
+            r = pygame.Rect(W // 2 - 150, H - 30, 300, 8)
+            text(surf, e.nom, F_PETITA, (255, 214, 140), (r.left, r.top - 7), ancora="midleft")
+            pygame.draw.rect(surf, (10, 6, 8), r.inflate(4, 4))
+            pygame.draw.rect(surf, (60, 20, 22), r)
+            k = max(0.0, e.vida / e.vida_inicial) if hasattr(e, "vida_inicial") else 1.0
+            pygame.draw.rect(surf, (200, 60, 50) if e.fase == 1 else (230, 120, 40), (r.left, r.top, int(r.width * k), r.height))
+            pygame.draw.line(surf, (255, 150, 120), (r.left, r.top), (r.left + int(r.width * k) - 1, r.top))
+            pygame.draw.line(surf, (200, 170, 120), (r.centerx, r.top - 1), (r.centerx, r.bottom))
+
     def dibuixar_hud(self, surf):
         j = self.jugador
+        if self.jefe:
+            self._hud_jefe(surf)
         es = self.esdeveniments
         # vida
         for i in range(j.vida_max):

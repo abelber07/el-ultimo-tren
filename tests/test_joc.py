@@ -256,3 +256,80 @@ def test_intro_i_menu_porten_al_joc(tmp_path, monkeypatch):
     assert joc.estat == "joc" and joc.partida.nom_dificultat == "dificil"
     joc2 = main.Joc()                       # la segona vegada ja no surt la intro
     assert joc2.estat == "titol"
+
+
+def _jefe(llavor=3, dificultat="normal"):
+    p = Partida(ATLES, ATR, llavor=llavor, dificultat=dificultat)
+    v = p.tren.vagons[-1]
+    assert v.tipus == "revisor"
+    j = p.jugador
+    j.x, j.y = v.x0 + 200, TERRA_Y
+    j.canviar("normal")
+    p.camera(immediata=True)
+    rv = next(e for e in p.enemics if getattr(e, "es_jefe", False))
+    return p, j, rv
+
+
+def test_revisor_es_presenta_i_la_porta_no_obre_fins_que_cau():
+    p, j, rv = _jefe()
+    for _ in range(5):
+        tecles()
+        p.actualitzar()
+    assert rv.estat == "presenta" and p.jefe is rv
+    assert not p.tren.vagons[-1].oberta
+    rv.canviar("encallat")
+    while not rv.mort:
+        rv.rebre(p, 1, j.x)
+        if rv.estat == "fase2":
+            assert p.jefe_fosc
+            rv.canviar("encallat")
+    tecles()
+    p.actualitzar()
+    assert rv.estat == "vençut" and not p.jefe_fosc
+    for _ in range(40):
+        tecles()
+        p.actualitzar()
+    assert p.tren.vagons[-1].oberta
+
+
+def test_revisor_parada_perfecta_i_ona():
+    p, j, rv = _jefe()
+    j.invul = 0
+    rv.canviar("camina")
+    rv.vida_inicial = rv.vida
+    j.x = rv.x - 40
+    j.dir = 1
+    while not (rv.estat == "alça" and rv.t >= 32):
+        tecles()
+        p.actualitzar()
+    tecles(prem={"para"}, aguant={"para"})
+    p.actualitzar()
+    for _ in range(12):
+        tecles(aguant={"para"})
+        p.actualitzar()
+    assert rv.estat == "atordit"
+    assert j.vida == j.vida_max
+    assert not p.perills, "una parada perfecta talla el cop abans de l'ona"
+    rv.atordit = 0
+    rv.canviar("alça")
+    j.invul = 10 ** 9
+    while rv.estat != "encallat":
+        tecles()
+        p.actualitzar()
+    assert p.perills, "sense parar, la perforadora fa una ona"
+
+
+def test_revisor_agafa_i_pren_bitllets():
+    p, j, rv = _jefe()
+    j.invul = 0
+    j.bitllets = 5
+    rv.canviar("estira")
+    rv.vida_inicial = rv.vida
+    rv.dir = -1
+    j.x = rv.x - 120
+    for _ in range(80):
+        tecles()
+        p.actualitzar()
+        if rv.estat == "agafa":
+            break
+    assert rv.estat == "agafa" and j.bitllets == 3

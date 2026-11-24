@@ -232,7 +232,7 @@ class Joc:
             text(s, d["desc"], F_PETITA, (210, 196, 170), (W // 2, y0 - 14))
         m = self.dades.get("millor")
         if m:
-            rec = "Tramo 1 cruzado" if m.get("fi") else f"Mejor viaje: vagón {m['vago']} de 7"
+            rec = "Tramo 1 cruzado" if m.get("fi") else f"Mejor viaje: vagón {m['vago']} de 8"
             text(s, rec, F_PETITA, (170, 156, 130), (10, H - 8), ancora="bottomleft")
         text(s, f"v{nucli.VERSIO} · un juego de Abel", F_PETITA, (150, 140, 130), (W - 10, H - 8),
              ancora="bottomright")

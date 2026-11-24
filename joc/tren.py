@@ -25,10 +25,11 @@ PALETES = {
     "equipatges": ((58, 46, 36), (46, 36, 28), (36, 28, 22), (90, 76, 60)),
     "correu": ((46, 50, 58), (36, 40, 48), (36, 28, 22), (110, 100, 80)),
     "venedor": ((70, 36, 58), (54, 28, 44), (40, 22, 18), (190, 150, 80)),
+    "revisor": ((34, 38, 62), (26, 28, 48), (30, 20, 16), (196, 152, 64)),
 }
 NOMS = {"cua": "Furgón de cola", "segona": "Segunda clase", "llitera": "Coche cama",
         "restaurant": "Vagón restaurante", "equipatges": "Vagón de equipajes", "correu": "Vagón correo",
-        "venedor": "La máquina"}
+        "venedor": "La máquina", "revisor": "Coche del Revisor"}
 CAIXA_EXT = (74, 22, 26)          # el color de fora del vagó (granat)
 CAIXA_EXT_C = (120, 40, 40)
 SOSTRE_C = (58, 64, 88)
@@ -266,10 +267,21 @@ def gen_venedor(v, rng):
     v.llums.append((cx, SOSTRE_INT + 22, "llum_penjant"))
 
 
+def gen_revisor(v, rng):
+    """El coche del Revisor: llarg i buit (és l'arena), amb dos llums penjants i cap escotilla."""
+    a, b = v.ix(20, 20)
+    v.mobles.append(("seient", a + 30, TERRA_Y, False))
+    v.mobles.append(("seient", b - 30, TERRA_Y, True))
+    _finestres_i_llums(v, list(range(a + 120, b - 60, 170)), w=60, llums=False)
+    for cx in (a + (b - a) // 3, a + 2 * (b - a) // 3):
+        v.llums.append((cx, SOSTRE_INT + 22, "llum_penjant"))
+    v.spawns.append(("revisor", b - 150, TERRA_Y, {}))
+
+
 GENERADORS = {"cua": gen_cua, "segona": gen_segona, "llitera": gen_llitera, "restaurant": gen_restaurant,
-              "equipatges": gen_equipatges, "correu": gen_correu, "venedor": gen_venedor}
+              "equipatges": gen_equipatges, "correu": gen_correu, "venedor": gen_venedor, "revisor": gen_revisor}
 AMPLES = {"cua": 640, "segona": 820, "llitera": 820, "restaurant": 760, "equipatges": 760, "correu": 720,
-          "venedor": 560}
+          "venedor": 560, "revisor": 760}
 
 
 def ordre_vagons(rng, n=7):
@@ -284,7 +296,7 @@ def ordre_vagons(rng, n=7):
         seq += bossa
     seq = seq[:n - 2]
     seq.insert(len(seq) // 2 + 1, "venedor")
-    return ["cua"] + seq
+    return ["cua"] + seq + ["revisor"]
 
 
 # ---------------------------------------------------------------------------------------------
