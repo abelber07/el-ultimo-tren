@@ -29,6 +29,8 @@ class Control:
     def __init__(self):
         self.ara = set()
         self.aguant = set()
+        self.aguant_teclat = set()     # les que aguanta el teclat
+        self.aguant_altres = set()     # les que aguanta el ratolí o el comandament
         self.eix = {"esq": False, "dre": False, "amunt": False, "avall": False}
         self.mandos = []
         self.ultim = "teclat"
@@ -37,24 +39,39 @@ class Control:
     def començar(self):
         self.ara = set()
         self.qualsevol = False
+        self._revisar_teclat()
 
-    def _baixa(self, accions):
+    def _revisar_teclat(self):
+        """Treu les accions de teclat que ja no té cap tecla premuda (al navegador de vegades es perd el KEYUP)."""
+        try:
+            premudes = pygame.key.get_pressed()
+        except pygame.error:
+            return
+        for accio in list(self.aguant_teclat):
+            if not any(premudes[k] for k in TECLES[accio]):
+                self.aguant_teclat.discard(accio)
+                if accio not in self.aguant_altres:
+                    self.aguant.discard(accio)
+
+    def _baixa(self, accions, teclat=False):
         for a in accions:
             self.ara.add(a)
             self.aguant.add(a)
+            (self.aguant_teclat if teclat else self.aguant_altres).add(a)
         self.qualsevol = True
 
-    def _puja(self, accions):
+    def _puja(self, accions, teclat=False):
         for a in accions:
-            self.aguant.discard(a)
+            (self.aguant_teclat if teclat else self.aguant_altres).discard(a)
+            if a not in self.aguant_teclat and a not in self.aguant_altres:
+                self.aguant.discard(a)
 
     def event(self, ev):
         if ev.type == pygame.KEYDOWN:
             self.ultim = "teclat"
-            self._baixa([a for a, ks in TECLES.items() if ev.key in ks])
-            self.qualsevol = True
+            self._baixa([a for a, ks in TECLES.items() if ev.key in ks], teclat=True)
         elif ev.type == pygame.KEYUP:
-            self._puja([a for a, ks in TECLES.items() if ev.key in ks])
+            self._puja([a for a, ks in TECLES.items() if ev.key in ks], teclat=True)
         elif ev.type == pygame.MOUSEBUTTONDOWN:
             self._baixa(RATOLI.get(ev.button, ()))
         elif ev.type == pygame.MOUSEBUTTONUP:
@@ -95,6 +112,8 @@ class Control:
 
     def deixar_anar(self):
         self.aguant.clear()
+        self.aguant_teclat.clear()
+        self.aguant_altres.clear()
         self.ara.clear()
 
 

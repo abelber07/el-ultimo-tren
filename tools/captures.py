@@ -84,8 +84,8 @@ if "sostre" in escenes:
     pas(1, tecles=["amunt"])
     pas(40, tecles=["amunt"])
     guardar("05_escala")
-    pas(60, tecles=["amunt"])
-    pas(80, tecles=["dre"])
+    pas(90, tecles=["amunt"])
+    pas(100, tecles=["dre"])
     guardar("06_sostre")
 if "tunel" in escenes:
     p = nova()
